@@ -79,8 +79,10 @@ jobs:
           Compress-Archive -Path "signpath-in\*" -DestinationPath "signpath-bundle.zip" -Force
 
       - name: Assinar binários via SignPath Foundation
-        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+        if: ${{ env.HAVE_SIGNPATH == 'true' }}
         uses: SignPath/github-action-submit-signing-request@v1
+        env:
+          HAVE_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -130,14 +132,18 @@ jobs:
           }
 
       - name: Autenticar no Google Cloud
-        if: ${{ secrets.GCP_SA_KEY != '' }}
+        if: ${{ env.HAVE_GCP == 'true' }}
         uses: google-github-actions/auth@v2
+        env:
+          HAVE_GCP: ${{ secrets.GCP_SA_KEY != '' }}
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Upload para Google Cloud Storage (superproc_updater)
-        if: ${{ secrets.GCP_SA_KEY != '' }}
+        if: ${{ env.HAVE_GCP == 'true' }}
         uses: google-github-actions/upload-cloud-storage@v2
+        env:
+          HAVE_GCP: ${{ secrets.GCP_SA_KEY != '' }}
         with:
           path: exports
           destination: superproc_updater
