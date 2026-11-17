@@ -63,7 +63,13 @@ jobs:
           $version = (node -p "require('./package.json').version").Trim()
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           if (-not (Test-Path $makensis)) {
-            $makensis = (Get-Command makensis.exe).Source
+            $cmd = Get-Command makensis.exe -ErrorAction SilentlyContinue
+            if ($cmd) {
+              $makensis = $cmd.Source
+            } else {
+              choco install nsis -y --no-progress
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
           }
           & $makensis "/DPRODUCT_VERSION=$version" "instalador\SuperPROC-Setup.nsi"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
