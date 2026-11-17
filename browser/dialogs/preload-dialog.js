@@ -1,0 +1,24 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('dialogAPI', {
+  close: () => ipcRenderer.send('dialog-close'),
+  getDialogData: () => ipcRenderer.invoke('dialog-get-data'),
+  addLink: (category, nome, url) => ipcRenderer.invoke('dialog-add-link', { category, nome, url }),
+  updateLink: (category, id, nome, url) => ipcRenderer.invoke('config-update-link', { category, id, nome, url }),
+  removeLink: (category, id) => ipcRenderer.invoke('config-remove-link', { category, id }),
+  setCategoryLinks: (category, links) => ipcRenderer.invoke('config-set-category-links', { category, links }),
+  saveAllCategories: (categoriesMap) => ipcRenderer.invoke('config-save-all-categories', categoriesMap),
+  moveLink: (category, id, direction) => ipcRenderer.invoke('config-move-link', { category, id, direction }),
+  navigateTo: (url) => ipcRenderer.send('dialog-navigate-to', url),
+  clearCache: () => ipcRenderer.invoke('clear-cache'),
+  clearPreferences: () => ipcRenderer.invoke('clear-preferences'),
+  clearAllData: () => ipcRenderer.invoke('clear-all-data'),
+  openDialog: (type) => ipcRenderer.send('dialog-open', type),
+  getExtensionsStatus: () => ipcRenderer.invoke('extensions-status'),
+  clearExtensions: () => ipcRenderer.invoke('clear-extensions'),
+  setCorretorOrtografico: (enabled) => ipcRenderer.invoke('config-set-corretor-ortografico', enabled),
+  getConfig: () => ipcRenderer.invoke('config-get'),
+  getDownloadConfig: () => ipcRenderer.invoke('get-download-config'),
+  setDownloadConfig: (cfg) => ipcRenderer.invoke('set-download-config', cfg),
+  selectDownloadFolder: () => ipcRenderer.invoke('select-download-folder')
+});

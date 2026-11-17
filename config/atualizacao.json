@@ -1,0 +1,6 @@
+{
+  "urlBase": "https://storage.googleapis.com/superproc_updater",
+  "repositorio": "GustavoRaiser/superproc_updater",
+  "chavePublicaPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAyAkayvCx6BWt00dxHreEyOnqBwr4ig9Gq+FMCBRYt30=\n-----END PUBLIC KEY-----\n",
+  "observacao": "urlBase aponta para o bucket público no Google Cloud Storage onde são publicados o manifesto-latest.json assinado e os pacotes."
+}

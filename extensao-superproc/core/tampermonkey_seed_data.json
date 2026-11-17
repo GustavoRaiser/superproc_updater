@@ -1,0 +1,210 @@
+{
+  "keywords": [
+    "Petição",
+    "Contestação",
+    "Réplica",
+    "Alegações",
+    "Rol De Testemunhas",
+    "Embargos de Declaração",
+    "Despacho",
+    "Sentença",
+    "nomeação de bens",
+    "exceção de pré",
+    "resposta",
+    "emenda",
+    "parecer",
+    "Impugnação",
+    "Embargos"
+  ],
+  "EPROC_ARVORE_REGRAS_CORES_V1": {
+    "mandado": {
+      "bg": "#87ceeb",
+      "tx": "#000000"
+    },
+    "sentenca": {
+      "bg": "#000000",
+      "tx": "#ffffff"
+    },
+    "cnib": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "prevjud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "sniper": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "petição inicial": {
+      "bg": "#007bff",
+      "tx": "#ffffff"
+    },
+    "réplica": {
+      "bg": "#007bff",
+      "tx": "#ffffff"
+    },
+    "contestação": {
+      "bg": "#dc3545",
+      "tx": "#ffffff"
+    },
+    "embargos de declaração": {
+      "bg": "#6f42c1",
+      "tx": "#ffffff"
+    },
+    "exceção de pré-executividade": {
+      "bg": "#fd7e14",
+      "tx": "#ffffff"
+    },
+    "ofício": {
+      "bg": "#e3e3e3",
+      "tx": "#000000"
+    },
+    "despacho": {
+      "bg": "inherit",
+      "tx": "#000000",
+      "inherit": true
+    },
+    "emenda da inicial": {
+      "bg": "#007bff",
+      "tx": "#ffffff"
+    },
+    "pagamento de custas": {
+      "bg": "#28a745",
+      "tx": "#ffffff"
+    },
+    "petição": {
+      "bg": "inherit",
+      "tx": "#000000",
+      "inherit": true
+    },
+    "procuração": {
+      "bg": "#d4d4d4",
+      "tx": "#000000"
+    },
+    "contrafé": {
+      "bg": "#87ceeb",
+      "tx": "#000000"
+    },
+    "nomeação de bens": {
+      "bg": "#dc3545",
+      "tx": "#ffffff"
+    },
+    "extrato de subconta": {
+      "bg": "#ffc107",
+      "tx": "#212529"
+    },
+    "infojud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "renajud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "serasajud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "extrato sisbajud": {
+      "bg": "#fef6ec",
+      "tx": "#000000"
+    },
+    "sisbajud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "confirmação de pagamento de alvara": {
+      "bg": "#75a829",
+      "tx": "#000000"
+    },
+    "alvará de levantamento": {
+      "bg": "#81a44c",
+      "tx": "#000000"
+    },
+    "auto": {
+      "bg": "#a8d4e6",
+      "tx": "#000000"
+    },
+    "decisão": {
+      "bg": "inherit",
+      "tx": "#000000",
+      "inherit": true
+    },
+    "laudo": {
+      "bg": "#ffc107",
+      "tx": "#212529"
+    },
+    "apelação": {
+      "bg": "inherit",
+      "tx": "#000000",
+      "inherit": true
+    },
+    "parecer": {
+      "bg": "inherit",
+      "tx": "#000000",
+      "inherit": true
+    },
+    "juntada de mandado": {
+      "bg": "#87ceeb",
+      "tx": "#000000"
+    },
+    "pesquisa negativa renajud": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "pesquisa positiva renajud": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "consulta/extrato renajud": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "consulta/extratorenajud": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "retirada de restricao renajud": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "inclusao de restricao renajud": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "detalhamento sisbajud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "termo": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "consulta infojud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "consulta/extrato infojud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "consulta/extratoinfojud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "extrato infojud": {
+      "bg": "#faebd7",
+      "tx": "#000000"
+    },
+    "consulta/extratocnib": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    },
+    "extratocnib": {
+      "bg": "#d8bfd8",
+      "tx": "#000000"
+    }
+  }
+}

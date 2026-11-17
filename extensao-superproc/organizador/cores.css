@@ -1,0 +1,71 @@
+/* Cores dos grupos de localizadores: complementa organizador.css (mesma superfície de trabalho). */
+a.btn { text-decoration: none; }
+
+.cores-lista {
+    display: grid;
+    gap: 12px;
+    padding: 16px 20px 28px;
+    max-width: 960px;
+}
+
+.cores-vazio {
+    padding: 18px;
+    background: var(--surface);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    color: var(--muted);
+}
+.cores-vazio h2 { margin: 0 0 6px; font-size: 15px; color: var(--text); }
+.cores-vazio p { margin: 0; }
+
+.grupo-cor {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    gap: 12px 20px;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+.grupo-cor h2 { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.grupo-cor .sub { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+
+.controles { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: flex-end; }
+.campo { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+
+.paleta { display: grid; grid-template-columns: repeat(8, 20px); gap: 4px; }
+.amostra {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    cursor: pointer;
+}
+.amostra.sel { outline: 2px solid var(--text); outline-offset: 1px; }
+.amostra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+input[type="color"].cor-livre { width: 32px; height: 28px; padding: 0; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; cursor: pointer; }
+
+.previa {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    background: #e9ecef;
+    color: #495057;
+    font: 600 12px var(--font);
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+    .grupo-cor { grid-template-columns: 1fr; }
+    .controles { justify-content: flex-start; }
+}

@@ -1,0 +1,12 @@
+{
+ "schema": 1,
+ "origem": "docs/alteracoes.json",
+ "extensoes": {
+  "azflow": {},
+  "epryx": {}
+ },
+ "idsLoja": {
+  "azflow": "jiomkeibpbnjkfnoklnkipbkkacmaaid",
+  "epryx": "mpnhboifpcngcoilgolajnnlfeoafefa"
+ }
+}

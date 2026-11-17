@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eproc</title>
+  <link rel="stylesheet" href="titlebar.css">
+</head>
+<body>
+  <div id="titlebar-container">
+    <!-- Região de Arrastar Janela -->
+    <div id="drag-region"></div>
+
+    <!-- Modo Integrada com Copilot: mostra/oculta a coluna do Copilot (ícone oficial entregue pelo host em execução) -->
+    <button id="btn-copilot-coluna" class="nav-btn copilot-btn" type="button" hidden aria-pressed="true" title="Ocultar a coluna do Copilot (continua ativo)" aria-label="Mostrar ou ocultar a coluna do Copilot"><img alt="" width="18" height="18"></button>
+
+    <!-- Controles de Navegação: Voltar (<) e Avançar (>) -->
+    <div id="nav-controls">
+      <button class="nav-btn" id="btn-nav-back" title="Voltar (Alt+Seta Esquerda)" aria-label="Voltar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="btn-nav-forward" title="Avançar (Alt+Seta Direita)" aria-label="Avançar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- 1. Sistema de Tabs Tradicional -->
+    <div id="tabs-section">
+      <div id="tabs-list" role="tablist" aria-label="Abas de trabalho">
+        <!-- Abas inseridas dinamicamente via JS -->
+      </div>
+      <button id="btn-new-tab" title="Nova Aba (Ctrl+T)" aria-label="Nova Aba"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v8M2 6h8"/></svg></button>
+    </div>
+
+    <!-- Espaço flexível para arrastar a janela -->
+    <div id="drag-spacer"></div>
+
+    <!-- 2. Menus Superiores Direitos: Jurisprudência, Legislação, Ferramentas, CFG -->
+    <div id="actions-section">
+      <!-- Menu Hover: Jurisprudência -->
+      <div class="hover-dropdown-container" id="menu-juris-container">
+        <button class="topbar-btn hover-trigger" id="btn-juris" aria-haspopup="menu" aria-expanded="false">
+          <span class="btn-text">Jurisprudência</span>
+          <span class="dropdown-caret">▾</span>
+        </button>
+      </div>
+
+      <!-- Menu Hover: Legislação -->
+      <div class="hover-dropdown-container" id="menu-leis-container">
+        <button class="topbar-btn hover-trigger" id="btn-leis" aria-haspopup="menu" aria-expanded="false">
+          <span class="btn-text">Legislação</span>
+          <span class="dropdown-caret">▾</span>
+        </button>
+      </div>
+
+      <!-- Menu Hover: Ferramentas -->
+      <div class="hover-dropdown-container" id="menu-ferramentas-container">
+        <button class="topbar-btn hover-trigger" id="btn-ferramentas" aria-haspopup="menu" aria-expanded="false">
+          <span class="btn-text">Ferramentas</span>
+          <span class="dropdown-caret">▾</span>
+        </button>
+      </div>
+
+      <!-- Botão: Downloads (Popup Flutuante em Primeiro Plano) -->
+      <button class="topbar-btn" id="btn-downloads" title="Downloads Recentes" aria-label="Downloads recentes">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+          <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+        </svg>
+      </button>
+
+      <!-- Botão: Histórico Duplo (URLs e Processos) -->
+      <button class="topbar-btn" id="btn-history" title="Histórico de URLs e Processos (Ctrl+H)" aria-label="Histórico de endereços e processos">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+          <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+        </svg>
+      </button>
+
+      <!-- Menu Clique: Configurações (Engrenagem) -->
+      <div class="click-dropdown-container" id="menu-cfg-container">
+        <button class="topbar-btn" id="btn-cfg" title="Configurações e Opções" aria-label="Configurações e opções" aria-haspopup="dialog" aria-expanded="false">
+          <span class="cfg-icon">⚙</span>
+        </button>
+        <div class="dropdown-menu click-menu" id="dropdown-cfg">
+          <div class="dropdown-section-title">Extensões Integradas</div>
+          <div class="extensions-row">
+            <button class="ext-card-btn" id="btn-open-azflow" title="Abrir configurações do AZflow">
+              <div class="ext-icon azflow-icon">⚡</div>
+              <div class="ext-info">
+                <span class="ext-name">AZflow</span>
+                <span class="ext-status">Ativo</span>
+              </div>
+            </button>
+            <button class="ext-card-btn" id="btn-open-superproc" title="Abrir preferências do SuperPROC">
+              <div class="ext-icon superproc-icon">★</div>
+              <div class="ext-info">
+                <span class="ext-name">SuperPROC</span>
+                <span class="ext-status">Ativo</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="dropdown-divider"></div>
+
+          <div class="dropdown-section-title">Navegação & URL</div>
+          <button class="menu-item-btn" id="btn-focus-url">
+            <span class="item-icon">🔍</span>
+            <div class="item-text">
+              <span class="item-title">Focar URL Atual</span>
+              <span class="item-desc">Ver, copiar ou editar o endereço da aba</span>
+            </div>
+            <span class="item-shortcut">Ctrl+L</span>
+          </button>
+
+          <div class="dropdown-divider"></div>
+
+          <div class="dropdown-section-title">Acesso Rápido</div>
+          <button class="menu-item-btn" id="btn-open-links-manager">
+            <span class="item-icon">⚡</span>
+            <div class="item-text">
+              <span class="item-title">Configurar Acesso Rápido</span>
+              <span class="item-desc">Jurisprudência, Legislação e Ferramentas</span>
+            </div>
+          </button>
+
+          <div class="dropdown-divider"></div>
+
+          <div class="dropdown-section-title">Opções do Navegador</div>
+          <button class="menu-item-btn" id="btn-reload-page">
+            <span class="item-icon">↻</span>
+            <div class="item-text">
+              <span class="item-title">Recarregar Aba Atual</span>
+            </div>
+            <span class="item-shortcut">F5</span>
+          </button>
+          <button class="menu-item-btn" id="btn-save-page">
+            <span class="item-icon">💾</span>
+            <div class="item-text">
+              <span class="item-title">Salvar Página</span>
+            </div>
+          </button>
+          <button class="menu-item-btn" id="btn-clear-cache">
+            <span class="item-icon">🧹</span>
+            <div class="item-text">
+              <span class="item-title">Limpar Cache do Eproc</span>
+            </div>
+          </button>
+          <button class="menu-item-btn" id="btn-devtools">
+            <span class="item-icon">🛠</span>
+            <div class="item-text">
+              <span class="item-title">Ferramentas de Desenvolvedor</span>
+            </div>
+            <span class="item-shortcut">F12</span>
+          </button>
+
+          <div class="dropdown-divider"></div>
+
+          <div class="dropdown-section-title">Downloads & PDF</div>
+          <div class="cfg-download-folder-row">
+            <div class="cfg-row-info">
+              <span class="item-title">Pasta de Download</span>
+              <span class="item-desc" id="cfg-download-path-display" title="">Padrão do Sistema</span>
+            </div>
+            <button class="cfg-small-btn" id="btn-choose-download-folder" title="Escolher pasta de download">Alterar</button>
+          </div>
+          <label class="cfg-checkbox-label">
+            <input type="checkbox" id="chk-auto-download">
+            <span>Download automático (salvar direto)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Controles Nativos de Janela (Min / Jan-Max / Fechar) -->
+    <div id="window-controls">
+      <button class="win-btn" id="btn-minimize" title="Minimizar" aria-label="Minimizar">
+        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button class="win-btn" id="btn-maximize" title="Maximizar / Restaurar" aria-label="Maximizar">
+        <svg id="icon-maximize" width="10" height="10" viewBox="0 0 10 10"><rect width="9" height="9" x="0.5" y="0.5" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+        <svg id="icon-restore" class="hidden" width="10" height="10" viewBox="0 0 10 10">
+          <rect width="7" height="7" x="2.5" y="0.5" fill="none" stroke="currentColor" stroke-width="1"/>
+          <polyline points="0.5,2.5 0.5,9.5 7.5,9.5" fill="none" stroke="currentColor" stroke-width="1"/>
+        </svg>
+      </button>
+      <button class="win-btn win-close" id="btn-close" title="Fechar" aria-label="Fechar">
+        <svg width="10" height="10" viewBox="0 0 10 10">
+          <polygon points="10,0.7 9.3,0 5,4.3 0.7,0 0,0.7 4.3,5 0,9.3 0.7,10 5,5.7 9.3,10 10,9.3 5.7,5" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Barra Flutuante de URL Atual ("Focar URL Atual") -->
+  <div id="url-bar-overlay" class="modal-overlay hidden">
+    <div class="url-bar-box">
+      <div class="url-bar-header">
+        <span>Endereço da Aba Ativa</span>
+        <button class="modal-close-btn" id="btn-close-url-bar">&times;</button>
+      </div>
+      <div class="url-input-group">
+        <input type="text" id="active-url-input" spellcheck="false" placeholder="https://...">
+        <button class="url-action-btn" id="btn-copy-url" title="Copiar URL">📋 Copiar</button>
+        <button class="url-action-btn primary" id="btn-go-url" title="Ir para o endereço">Ir ➔</button>
+      </div>
+      <div class="url-status" id="url-status-message"></div>
+    </div>
+  </div>
+
+  <!-- Modal do Gerenciador de Links (Juris & Leis) -->
+  <div id="links-manager-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Gerenciador de Links Rápidos</h2>
+        <button class="modal-close-btn" id="btn-close-links-modal">&times;</button>
+      </div>
+
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" data-tab="juris">Jurisprudência (JURIS)</button>
+        <button class="modal-tab-btn" data-tab="leis">Legislação (LEIS)</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Formulário de Adição -->
+        <div class="add-link-form">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="new-link-name">Nome do Link:</label>
+              <input type="text" id="new-link-name" placeholder="Ex: STJ - Precedentes">
+            </div>
+            <div class="form-group flex-2">
+              <label for="new-link-url">Endereço (URL):</label>
+              <input type="text" id="new-link-url" placeholder="https://...">
+            </div>
+            <button class="add-btn" id="btn-add-link">+ Adicionar</button>
+          </div>
+        </div>
+
+        <!-- Lista de Links Cadastrados -->
+        <div class="links-list-container">
+          <div class="links-list-header">Links Configurados:</div>
+          <div class="links-list-items" id="links-table-body">
+            <!-- Itens inseridos via JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="modal-btn-secondary" id="btn-modal-done">Concluído</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="titlebar.js"></script>
+</body>
+</html>

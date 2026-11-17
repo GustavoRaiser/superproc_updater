@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-m="loc">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizar grupos - SuperPROC</title>
+    <link rel="stylesheet" href="organizador.css">
+</head>
+<body>
+    <header class="topbar">
+        <h1>Organizar grupos</h1>
+
+        <div class="seg" role="tablist" aria-label="Módulo">
+            <button type="button" role="tab" data-m="loc" aria-selected="true">Localizadores</button>
+            <button type="button" role="tab" data-m="evt" aria-selected="false">Eventos</button>
+        </div>
+
+        <label class="origem" id="origemBox" hidden>
+            <span>Instância</span>
+            <select id="origem"></select>
+        </label>
+        <span class="origem-rotulo" id="origemRotulo" hidden></span>
+
+        <div class="busca">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input id="busca" type="search" placeholder="Filtrar itens" aria-label="Filtrar itens" autocomplete="off">
+        </div>
+
+        <div class="acoes">
+            <button type="button" id="desfazer" class="btn" disabled title="Desfazer (Ctrl+Z)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+                <span>Desfazer</span>
+            </button>
+            <button type="button" id="novoGrupo" class="btn primary">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                <span>Novo grupo</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="dica">
+        <p id="dica">Arraste itens para um grupo. Segure <kbd>Shift</kbd> e arraste o mouse para selecionar vários; depois arraste a seleção, ou use “Mover para” na barra que aparece embaixo. Itens em “Ocultos” não aparecem nas opções do Smart Localizadores. A ordem dos grupos (da esquerda para a direita, de cima para baixo) é a usada no Smart Localizadores: arraste a alça do grupo ou use as setas com a alça em foco. O olho esconde o grupo inteiro no Smart Localizadores.</p>
+        <span class="status" id="status" role="status" aria-live="polite"></span>
+    </div>
+
+    <main id="quadro" class="quadro"></main>
+
+    <div id="barraSel" class="barra-sel" role="region" aria-label="Itens selecionados" hidden>
+        <div id="editarSelecao" hidden></div>
+        <strong id="selN">0 selecionados</strong>
+        <label>
+            <span>Mover para</span>
+            <select id="destino"></select>
+        </label>
+        <button type="button" id="mover" class="btn primary">Mover</button>
+        <button type="button" id="limpar" class="btn">Limpar seleção</button>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+        <span id="toastTexto"></span>
+        <button type="button" id="toastAcao" class="toast-acao" hidden></button>
+    </div>
+
+    <script type="module" src="organizador.js"></script>
+</body>
+</html>

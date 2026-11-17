@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>SuperPROC Modal</title>
+  <link rel="stylesheet" href="dialog.css">
+</head>
+<body>
+  <div class="dialog-container">
+    <!-- Header -->
+    <div class="dialog-header">
+      <h2 id="dialog-title">SuperPROC</h2>
+      <button id="dialog-close-btn" title="Fechar (Esc)">&times;</button>
+    </div>
+
+    <!-- 1. Tela: Verificar URL -->
+    <div class="dialog-view hidden" id="view-url">
+      <p class="dialog-desc">Endereço (URL) da aba atualmente selecionada:</p>
+      <div class="input-group">
+        <input type="text" id="url-input" spellcheck="false" readonly>
+        <button class="btn btn-secondary" id="btn-copy-url">📋 Copiar</button>
+      </div>
+      <div class="status-msg" id="url-status"></div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" id="btn-close-url">Fechar</button>
+        <button class="btn btn-primary" id="btn-navigate-url">Navegar para este Endereço</button>
+      </div>
+    </div>
+
+    <!-- 2. Tela: Adicionar Juris ou Leis -->
+    <div class="dialog-view hidden" id="view-add-link">
+      <p class="dialog-desc" id="add-link-desc">Cadastre um novo favorito rápido:</p>
+      <div class="form-group">
+        <label for="link-name">Nome do Link:</label>
+        <input type="text" id="link-name" placeholder="Ex: STJ - Precedentes">
+      </div>
+      <div class="form-group">
+        <label for="link-url">Endereço Web (URL):</label>
+        <input type="text" id="link-url" placeholder="https://...">
+      </div>
+      <div class="status-msg" id="add-link-status"></div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" id="btn-cancel-add">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-add">Salvar Link</button>
+      </div>
+    </div>
+
+    <!-- 3. Tela: Configurações -->
+    <div class="dialog-view hidden" id="view-settings">
+      <div class="settings-grid">
+        <div class="settings-card">
+          <div class="card-columns">
+            <div class="card-col">
+              <h3>⚡ Motor Chromium Embutido</h3>
+              <p class="settings-info">Versão do Chromium: <strong id="chromium-version">120+ (Nativo)</strong></p>
+              <p class="settings-info">Segurança: <span class="badge-success">Certificados ICP-Brasil Habilitados</span></p>
+              <p class="settings-info">Aceleração de Hardware: <span class="badge-success">Ativa</span></p>
+            </div>
+            <div class="card-col">
+              <h3>🧩 Extensões em Execução</h3>
+              <ul class="ext-list" id="ext-list"></ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h3>🧰 Navegador</h3>
+          <label><input type="checkbox" id="chk-settings-corretor"> Corretor ortográfico</label>
+          <p class="settings-desc">Sublinha palavras erradas e sugere correções em qualquer campo de texto (pt-BR, dicionário local). Desative em caso de problema; campos já abertos podem exigir recarregar a página.</p>
+        </div>
+
+        <div class="settings-card">
+          <h3>🧹 Dados & Desempenho</h3>
+          <div class="data-actions">
+            <button class="btn btn-danger" id="btn-settings-clear-cache" data-popover="Limpa o cache de navegação dos sites. Mantém logins, preferências e extensões.">Limpar Cache</button>
+            <button class="btn btn-danger" id="btn-settings-clear-prefs" data-popover="Reseta as preferências do navegador, o histórico e os dados guardados pelas extensões (como grupos de localizadores). Mantém os logins, as extensões instaladas e os módulos e scripts importados. Reinicia o SuperPROC.">Limpar Preferências</button>
+            <button class="btn btn-danger" id="btn-settings-clear-ext" data-popover="Elimina as extensões (AZflow, Epryx e SuperPROC), com módulos importados e tudo o que guardaram, e elas voltam a aparecer como não instaladas. Mantém logins e preferências do navegador. Reinicia o SuperPROC. Não pode ser desfeito.">Limpar Extensões</button>
+            <button class="btn btn-danger" id="btn-settings-clear-all" data-popover="Apaga tudo, inclusive logins, e reinicia como na primeira abertura. Não pode ser desfeito.">Limpar Todos os Dados</button>
+          </div>
+          <span class="status-msg" id="cache-status"></span>
+          <div class="hover-popover hidden" id="data-popover" role="tooltip"></div>
+        </div>
+
+        <div class="settings-card">
+          <h3>📥 Downloads & Documentos</h3>
+          <p class="settings-desc">Configurações para salvamento de PDFs e documentos.</p>
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+            <input type="text" id="settings-download-path" readonly style="flex: 1; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.12); color: #fff; padding: 5px 8px; font-size: 11px; border-radius: 3px;">
+            <button class="btn btn-secondary" id="btn-settings-choose-folder" style="padding: 4px 10px; font-size: 11px;">Alterar...</button>
+          </div>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #d8e2ed; cursor: pointer;">
+            <input type="checkbox" id="chk-settings-auto-download" style="accent-color: #0284c7;"> Download automático (salvar direto sem perguntar)
+          </label>
+        </div>
+
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-primary" id="btn-close-settings">Concluir</button>
+      </div>
+    </div>
+
+    <!-- 5. Tela: Gerenciar / Editar Favoritos (Juris, Leis, Ferramentas) -->
+    <div class="dialog-view hidden" id="view-manage-links">
+      <div class="manage-category-bar">
+        <button class="manage-tab-btn active" data-cat="jurisprudencia">Jurisprudência</button>
+        <button class="manage-tab-btn" data-cat="legislacao">Legislação</button>
+        <button class="manage-tab-btn" data-cat="ferramentas">Ferramentas</button>
+      </div>
+
+      <div class="manage-table-container">
+        <table class="manage-table">
+          <thead>
+            <tr>
+              <th style="width: 82px; text-align: center;">Ordem</th>
+              <th style="width: 26%;">Nome do Link</th>
+              <th>Endereço Web (URL)</th>
+              <th style="width: 128px; text-align: center;" title="Atalho de teclado para abrir este link no painel. Se o mesmo atalho for dado a 2 ou mais links, ele abre um menu de escolha.">Atalho</th>
+              <th style="width: 45px; text-align: center;">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="manage-table-body">
+            <!-- Linhas geradas dinamicamente via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Barra de Adição Rápida na Categoria Ativa -->
+      <div class="manage-quick-add">
+        <input type="text" id="quick-add-nome" placeholder="Nome do link ou do grupo">
+        <input type="text" id="quick-add-url" placeholder="https://...">
+        <button class="btn btn-secondary" id="btn-quick-add">+ Adicionar</button>
+        <button class="btn btn-secondary" id="btn-quick-group" title="Cria um grupo (pasta) com o nome digitado ao lado">📁 Grupo</button>
+        <button class="btn btn-primary hidden" id="btn-quick-catalogo" title="Pesquisar no catálogo local de normas e adicioná-las ao acesso rápido">🔎 Catálogo de leis</button>
+      </div>
+
+      <div class="status-msg" id="manage-status"></div>
+
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" id="btn-close-manage">Fechar</button>
+        <button class="btn btn-primary" id="btn-save-manage">💾 Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../quick-shortcut-core.js"></script>
+  <script src="dialog.js"></script>
+</body>
+</html>

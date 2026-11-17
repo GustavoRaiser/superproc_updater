@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SuperPROC - Gerenciador</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <!-- Cabeçalho -->
+        <header class="header">
+            <div class="header-title">
+                <div class="logo-icon"><img src="../icons/icon48.png" width="24" height="24" alt="SP" style="vertical-align: middle;"></div>
+                <div>
+                    <h1>SuperPROC</h1>
+                    <span class="subtitle">Eproc Turbo & Custom</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button id="btn-open-profile" class="btn-icon-header" title="Salvar / Carregar Perfil">
+                    💾 Perfil
+                </button>
+                <span class="version-tag">v1.0.0</span>
+                <button id="btn-fechar-popup" class="btn-fechar" type="button" title="Fechar (Esc)" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Barra de Pesquisa -->
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Buscar funcionalidade...">
+            <span class="search-icon">🔍</span>
+        </div>
+
+        <!-- Categorias / Filtros -->
+        <nav class="categories-nav" id="categories-nav">
+            <button class="cat-pill active" data-cat="all">Todos</button>
+            <!-- Injetado dinamicamente -->
+        </nav>
+
+        <!-- Lista de Módulos -->
+        <main class="modules-list" id="modules-list">
+            <div class="loading-state">Carregando módulos...</div>
+        </main>
+
+        <!-- Rodapé / Ações Globais -->
+        <footer class="footer">
+            <div class="footer-actions">
+                <button id="btn-enable-all" class="btn-secondary" title="Ativar todos os módulos exibidos">Ativar Todos</button>
+                <button id="btn-disable-all" class="btn-secondary" title="Desativar todos os módulos exibidos">Desativar Todos</button>
+            </div>
+            <button id="btn-reload-tab" class="btn-primary" title="Recarregar a aba atual do EPROC">
+                🔄 Recarregar Página
+            </button>
+        </footer>
+
+        <!-- Perfil: exportar e carregar -->
+        <div id="profile-modal" class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>💾 Perfil</h3>
+                    <button id="btn-close-profile" class="btn-close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="profile-btn-row">
+                        <button id="btn-export-file" class="btn-profile-action">⬇ Exportar</button>
+                        <button id="btn-trigger-upload" class="btn-profile-action">📁 Carregar</button>
+                    </div>
+                    <input type="file" id="file-import-profile" accept=".json,application/json" style="display: none;">
+                    <div id="profile-feedback" class="profile-feedback"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>

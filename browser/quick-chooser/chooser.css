@@ -1,0 +1,23 @@
+:root { --bg: #1e2634; --borda: #354257; --hover: #2a3547; --texto: #d8e2ed; --muted: #8c9cb0; --acento: #057ba9; }
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; border-radius: 0 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+html, body { height: 100%; background: transparent; overflow: hidden; }
+.card { height: 100%; background: var(--bg); border: 1px solid var(--borda); padding: 4px 0; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
+/* Grade única com posição explícita por célula: cabeçalhos de grupo alinhados na mesma linha, links sem grupo no topo. */
+/* width:max-content + colunas 1fr: o menu tem a largura do maior item e as colunas ficam sempre iguais. */
+.grade { position: relative; display: grid; width: max-content; min-width: 100%; align-content: start;
+  grid-template-columns: repeat(var(--colunas, 1), 1fr); grid-template-rows: repeat(var(--linhas, 1), 28px); }
+.grade.duas::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; border-left: 1px solid var(--borda); pointer-events: none; }
+/* Cabeçalho do grupo: não clicável; os links do grupo ficam recuados logo abaixo dele. */
+.cabecalho { display: flex; align-items: center; height: 28px; padding: 0 14px; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted); background: rgba(255,255,255,.04); border-bottom: 1px solid var(--borda); cursor: default; }
+.com-solto .cabecalho { border-top: 1px solid var(--borda); }
+.cabecalho::before { content: "\25BE"; margin-right: 6px; color: var(--acento); }
+.agrupado .item { justify-content: flex-start; text-align: left; }
+.agrupado .item.sub { padding-left: 28px; }
+.item { display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 14px;
+  height: 28px; color: var(--texto); font-size: 12px; cursor: pointer; }
+.item:hover, .item.ativo { background: var(--hover); }
+.item.ativo { box-shadow: inset 2px 0 0 var(--acento); }
+.nome { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

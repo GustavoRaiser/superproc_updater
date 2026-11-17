@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Downloads Recentes</title>
+  <link rel="stylesheet" href="downloads-menu.css">
+</head>
+<body>
+  <div class="downloads-card" id="downloads-card">
+    <div class="downloads-header">
+      <div class="header-left">
+        <svg class="header-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+          <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+        </svg>
+        <span class="downloads-title">Downloads Recentes</span>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="btn-open-folder" title="Abrir pasta de downloads">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h4.672a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2.5a2 2 0 0 1-2-2V4.87zM2.5 2a1 1 0 0 0-1 1v1.5h13V4a1 1 0 0 0-1-1H9.828a3 3 0 0 1-2.12-.879l-.83-.828A1 1 0 0 0 6.172 2H2.5z"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btn-clear-downloads" title="Limpar lista de downloads">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M2.5 1a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1H3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4h.5a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1H2.5zm3 4a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 .5-.5zM8 5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-1 0v-7A.5.5 0 0 1 8 5zm3 .5v7a.5.5 0 0 1-1 0v-7a.5.5 0 0 1 1 0z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="downloads-list" id="downloads-list">
+      <!-- Itens renderizados dinamicamente -->
+    </div>
+  </div>
+
+  <script src="downloads-menu.js"></script>
+</body>
+</html>

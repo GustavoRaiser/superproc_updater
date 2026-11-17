@@ -1,0 +1,73 @@
+{
+  "name": "superproc-v2",
+  "version": "0.2.0",
+  "description": "SuperPROC v2 — otimizações em perfil independente",
+  "main": "browser/main.js",
+  "scripts": {
+    "start": "node node_modules/electron/cli.js .",
+    "test": "node scripts/test-v2.cjs && node scripts/test-history.cjs && node scripts/test-titlebar-tabs.cjs && node scripts/test-pilha-relacionados.cjs && node scripts/test-menu-eventos.cjs && node scripts/test-quick-shortcuts.cjs && node scripts/test-open-mode.cjs && node scripts/test-layout-copilot.cjs && node scripts/test-copilot-escuta.cjs && node scripts/test-browser-context-tools.cjs && node scripts/test-copilot-protocolo-edge.cjs && node scripts/test-copilot-comercial.cjs && node scripts/test-pdf-copilot.cjs && node scripts/test-copilot-botoes-anexo.cjs && node scripts/test-ipc-policy.cjs && node scripts/test-spellcheck.cjs && node scripts/test-localizadores-sinal.cjs && node scripts/test-situacao-dias.cjs && node scripts/test-editor-texto.cjs && node scripts/test-texto-atalho.cjs && node scripts/test-fast-copilot.cjs && node scripts/test-fast-copilot-f1.cjs && node scripts/test-context-broker.cjs && node scripts/test-context-exportador.cjs && node scripts/test-copilot-shell.cjs && node scripts/test-copilot-graph.cjs && node scripts/test-extensao-atualizador.cjs && node scripts/test-legislacao.cjs && node scripts/test-atualizacao-app.cjs && node scripts/test-atualizacao-zip.cjs && node scripts/test-atualizacao-instalador.cjs && node scripts/test-conta-microsoft.cjs && node scripts/test-publicar.cjs",
+    "verify": "node scripts/verificar.cjs",
+    "test:dom": "node scripts/run-electron.cjs dom",
+    "test:host": "node scripts/run-electron.cjs host",
+    "test:acessibilidade": "node scripts/run-electron.cjs acessibilidade",
+    "test:azflow-onboarding": "node scripts/run-electron.cjs azflow-onboarding",
+    "test:extension-tabs": "node scripts/run-electron.cjs extension-tabs",
+    "test:integracao-azflow": "node scripts/run-electron.cjs integracao-azflow",
+    "test:popup-dimensoes": "node scripts/run-electron.cjs popup-dimensoes",
+    "test:valor-causa": "node scripts/run-electron.cjs valor-causa",
+    "test:copilot-host": "node scripts/run-electron.cjs copilot",
+    "test:contexto": "node scripts/run-electron.cjs contexto",
+    "test:copilot-origem-lab": "node scripts/run-electron.cjs copilot-origem-lab",
+    "test:copilot-busca": "node scripts/run-electron.cjs copilot-busca",
+    "proto:view": "node node_modules/electron/cli.js scripts/proto-mover-view.cjs",
+    "test:regressions": "node scripts/run-electron.cjs regressions",
+    "benchmark": "node scripts/benchmark.cjs",
+    "export": "node scripts/composicao.cjs --export",
+    "inventory": "node scripts/composicao.cjs",
+    "extensoes:promover": "node scripts/promover-extensoes.cjs",
+    "test:export": "node scripts/test-composicao.cjs",
+    "verify:export": "node scripts/composicao.cjs --verify",
+    "test:security": "node scripts/run-electron.cjs security",
+    "test:copilot-shell": "node scripts/run-electron.cjs copilot-shell",
+    "test:legislacao": "node scripts/run-electron.cjs legislacao",
+    "publicar": "node scripts/publicar.cjs",
+    "test:atualizacao-menu": "node scripts/run-electron.cjs atualizacao-menu",
+    "legislacao:catalogo": "node scripts/gerar-catalogo-legislacao.cjs",
+    "legislacao:biblioteca-inicial": "node scripts/gerar-biblioteca-inicial.cjs"
+  },
+  "build": {
+    "appId": "com.superproc.v2",
+    "productName": "SuperPROC v2",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "ICO_BROWSER.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  },
+  "keywords": [
+    "eproc",
+    "electron",
+    "browser",
+    "superproc",
+    "azflow"
+  ],
+  "author": "SuperPROC Team",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "45.3.3"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^7.1.2",
+    "pdfjs-dist": "6.3.289"
+  }
+}

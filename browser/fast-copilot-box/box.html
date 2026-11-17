@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src data:">
+<title>Copilot</title><link rel="stylesheet" href="box.css"></head>
+<body>
+<main role="dialog" aria-label="Copilot">
+  <header><span id="icone" aria-hidden="true"></span><h1 id="titulo">Copilot</h1><span class="dica">Enter envia · Shift+Enter nova linha · Esc fecha</span></header>
+  <label for="instrucao" class="rotulo">O que você quer do Copilot?</label>
+  <p id="contexto" class="contexto"></p>
+  <textarea id="instrucao" rows="4" spellcheck="true" placeholder="Ex.: reescreva de forma mais objetiva"></textarea>
+  <div class="painel">
+    <section class="grupo" aria-label="Modo">
+      <h2>Modo</h2>
+      <button type="button" id="op-alteracao" class="op" aria-pressed="false" data-tecla="a"><span class="chave" aria-hidden="true"></span><span class="txt"><b>Substituição de Texto</b><small>A resposta substitui o texto selecionado</small></span><span class="tec">Alt+A</span><span class="estado"></span></button>
+      <button type="button" id="op-destaque" class="op sub" aria-pressed="false" data-tecla="h"><span class="chave" aria-hidden="true"></span><span class="txt"><b>Destacar alterações</b><small>Marca em amarelo o que mudou, com borracha em cada trecho</small></span><span class="tec">Alt+H</span><span class="estado"></span></button>
+    </section>
+    <section class="grupo" id="grp-junto" aria-label="Enviar junto">
+      <h2>Enviar junto</h2>
+      <button type="button" id="op-selecao" class="op" aria-pressed="false" data-tecla="1"><span class="chave" aria-hidden="true"></span><span class="txt"><b>Texto selecionado</b></span><span class="tec">Alt+1</span><span class="estado"></span></button>
+      <button type="button" id="op-pdf" class="op" aria-pressed="false" data-tecla="2"><span class="chave" aria-hidden="true"></span><span class="txt"><b>PDF aberto</b></span><span class="tec">Alt+2</span><span class="estado"></span></button>
+      <button type="button" id="op-minuta" class="op" aria-pressed="false" data-tecla="3"><span class="chave" aria-hidden="true"></span><span class="txt"><b>Íntegra da minuta</b></span><span class="tec">Alt+3</span><span class="estado"></span></button>
+    </section>
+    <section class="grupo" id="grp-conversa" aria-label="Conversa">
+      <h2>Conversa</h2>
+      <button type="button" id="op-nova" class="op" aria-pressed="false" data-tecla="n"><span class="chave" aria-hidden="true"></span><span class="txt"><b><u>N</u>ova conversa</b><small>Ligada, abre conversa nova; desligada, usa a conversa atual</small></span><span class="tec">Alt+N</span><span class="estado"></span></button>
+    </section>
+  </div>
+  <p id="aviso" role="alert" hidden></p>
+  <footer><button type="button" id="cancelar">Cancelar</button><button type="button" id="enviar" class="primario">Enviar (Enter)</button></footer>
+</main>
+<script src="box.js"></script>
+</body></html>

@@ -1,0 +1,57 @@
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:13px "Segoe UI",Arial,sans-serif;color:#1f2328;background:#fff}
+main{display:flex;flex-direction:column;gap:8px;height:100%;padding:12px 14px;border:1px solid #9aa3ad}
+header{display:flex;align-items:center;gap:8px}
+header h1{margin:0;font-size:15px;flex:1}
+#icone img,#icone svg{width:24px;height:24px;display:block;object-fit:contain}
+.dica{font-size:11px;color:#59636e}
+.rotulo{font-weight:600}
+.contexto{margin:-4px 0 0;font-size:11px;color:#59636e}
+.contexto b{color:#1f2328}
+textarea{width:100%;flex:1;min-height:70px;resize:none;padding:8px;font:inherit;border:1px solid #9aa3ad;border-radius:4px}
+textarea:focus{outline:2px solid #0b5cad;outline-offset:0}
+.painel{display:flex;flex-direction:column;gap:6px}
+.grupo{display:flex;flex-direction:column;gap:2px;padding:4px 6px 6px;border:1px solid #d0d7de;border-radius:6px;background:#fbfcfd}
+.grupo h2{margin:0 0 2px;font-size:11px;font-weight:600;color:#59636e;text-transform:uppercase;letter-spacing:.04em}
+.op{display:grid;grid-template-columns:34px 1fr auto 78px;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;padding:3px 4px;border:1px solid transparent;border-radius:4px;background:transparent;color:#1f2328;cursor:pointer}
+.op:hover:not(:disabled){background:#eef3f9}
+.op.sub{padding-left:22px}
+.op .txt{display:flex;flex-direction:column;min-width:0}
+.op .txt b{font-weight:600}
+.op small{color:#59636e;font-size:11px}
+.op .tec{font-size:11px;color:#59636e}
+.chave{position:relative;width:34px;height:18px;border-radius:9px;background:#b6bec7;transition:background .12s}
+.chave::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.35);transition:left .12s}
+.op[aria-pressed=true] .chave{background:#0b5cad}
+.op[aria-pressed=true] .chave::after{left:18px}
+.estado{font-size:11px;font-weight:700;color:#59636e;text-align:right}
+.estado::after{content:"DESLIGADO"}
+.op[aria-pressed=true] .estado{color:#0b5cad}
+.op[aria-pressed=true] .estado::after{content:"LIGADO"}
+.op:disabled{opacity:.5;cursor:not-allowed}
+.op:disabled .estado::after{content:"INDISPONÍVEL"}
+.op:disabled .chave{background:#d0d7de}
+.op:focus-visible,footer button:focus-visible{outline:2px solid #0b5cad;outline-offset:1px}
+#aviso{margin:0;color:#8a1f11;font-size:12px}
+footer{display:flex;justify-content:flex-end;gap:8px}
+footer button{font:inherit;padding:5px 12px;border:1px solid #9aa3ad;border-radius:4px;background:#f6f8fa;cursor:pointer}
+footer .primario{background:#0b5cad;border-color:#0b5cad;color:#fff}
+[hidden]{display:none!important}
+
+/* Alteração de Texto: versão compacta que nasce junto ao texto selecionado (instrução, modos e botões em poucas linhas) */
+body.compacto main{position:relative;padding:6px 10px 7px;gap:4px;border-radius:8px}
+body.compacto .rotulo,body.compacto .contexto,body.compacto .grupo h2,body.compacto .op small,body.compacto .estado,body.compacto .op .tec{display:none}
+body.compacto header h1{font-size:12.5px}
+body.compacto #icone img,body.compacto #icone svg{width:16px;height:16px}
+body.compacto .dica{font-size:10px}
+body.compacto textarea{flex:none;min-height:0;height:44px;padding:4px 7px}
+body.compacto .painel{flex-direction:row;align-items:center;gap:12px;padding-right:170px}
+body.compacto .grupo{flex-direction:row;gap:10px;padding:0;border:0;background:none}
+body.compacto .op{display:flex;width:auto;gap:6px;padding:1px 3px;font-size:12px}
+body.compacto .op.sub{padding-left:3px}
+body.compacto .chave{width:26px;height:14px;border-radius:7px;flex:none}
+body.compacto .chave::after{width:10px;height:10px}
+body.compacto .op[aria-pressed=true] .chave::after{left:14px}
+body.compacto footer{position:absolute;right:10px;bottom:6px;gap:6px}
+body.compacto footer button{padding:2px 9px;font-size:12px}
+body.compacto #aviso{position:absolute;left:12px;right:12px;bottom:32px;background:#fff;padding:1px 4px;font-size:11px}

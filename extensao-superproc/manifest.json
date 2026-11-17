@@ -1,0 +1,73 @@
+{
+  "manifest_version": 3,
+  "name": "SuperPROC",
+  "version": "1.0.0",
+  "description": "Extensão modular de produtividade e customização para o EPROC.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "*://*.tjsc.jus.br/*",
+    "*://eproc1g.tjsc.jus.br/*",
+    "*://eproc2g.tjsc.jus.br/*",
+    "*://eprocwebcon.tjsc.jus.br/*",
+    "*://*.jus.br/*",
+    "*://www.planalto.gov.br/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "SuperPROC - Configurações",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.tjsc.jus.br/*",
+        "*://eproc1g.tjsc.jus.br/*",
+        "*://eproc2g.tjsc.jus.br/*",
+        "*://eprocwebcon.tjsc.jus.br/*",
+        "*://*.jus.br/*",
+        "*://www.planalto.gov.br/*"
+      ],
+      "js": [
+        "v2-metrics/start-0.js",
+        "core/orchestrator.js",
+        "v2-metrics/end-0.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "core/*",
+        "modules/*",
+        "modules/*/*",
+        "modules/*/*/*",
+        "modules/editor/editor_pdf_main.js",
+        "modules/editor/lib/pdfmake.min.js",
+        "modules/editor/lib/vfs_fonts.js",
+        "icons/*"
+      ],
+      "matches": [
+        "*://*/*"
+      ]
+    }
+  ],
+  "background": {
+    "service_worker": "core/background.js"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwqx1IyVRtWOtzAYl2X9Lpvx6vijY9eVfFTF37PG+aaYJukXCf32i+Tb2Nc7BqmkQxo63+39B/6sIJyFf8ujgUje62ia+G3RyJBOuhkyriwmLCVtzGEPd64m7qHi03z5/sqME218EMmpoNW+O7fg3MtitvG2PAqkuF+wc+ifmM2jHZb1ydlNIRTf9NJwHu/zr5H0aclz6fmp3oibPyFXjvbPWB4PpaglouTZzZ1nPUPUmZMVgNkPYzEU/yG7WSmnogd3MaCNbZuQ73mR0Xyz1bak36FcGMpHRL1MXGLyEUZeI8EcUF8MN3Xy5KE3QTckKlpMllNyJTKkggcV3Xk49+wIDAQAB"
+}

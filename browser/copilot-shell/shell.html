@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Copilot (shell experimental)</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'">
+<link rel="stylesheet" href="shell.css"></head>
+<body>
+<main>
+  <header><span id="ponto" class="ponto"></span><h1 id="titulo">Copilot</h1><span class="selo">experimental</span></header>
+  <p id="mensagem" aria-live="polite"></p>
+  <div id="acoes"></div>
+  <p id="aviso-sintetico" hidden>Provedores sintéticos: este estado não indica licença nem elegibilidade de nenhuma conta.</p>
+  <section id="demo" hidden>
+    <h2>Consumidor sintético</h2>
+    <p class="nota">Cada leitura pede a sua autorização. Nada é colado nem enviado; o resultado aparece só aqui.</p>
+    <button id="listar" type="button">Listar abas</button>
+    <ul id="abas"></ul>
+    <pre id="resultado" aria-live="polite"></pre>
+  </section>
+  <section id="graph" hidden>
+    <p class="nota">Microsoft 365 Copilot API (prévia). O acesso depende da licença e das permissões da organização.</p>
+    <button id="graph-reconectar" type="button">Entrar novamente</button>
+    <button id="graph-listar" type="button">Selecionar uma aba para contexto</button>
+    <select id="graph-aba" aria-label="Aba para contexto"><option value="">Sem contexto de aba</option></select>
+    <label for="graph-pergunta">Mensagem</label>
+    <textarea id="graph-pergunta" rows="4" maxlength="20000"></textarea>
+    <button id="graph-enviar" type="button">Enviar</button>
+    <p id="graph-estado" aria-live="polite"></p>
+    <pre id="graph-resposta" aria-live="polite"></pre>
+    <details id="graph-fontes" hidden><summary>Fontes e classificação da última resposta</summary><pre id="graph-metadados"></pre></details>
+  </section>
+</main>
+<script src="shell.js"></script>
+</body></html>

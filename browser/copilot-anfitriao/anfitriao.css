@@ -1,0 +1,3 @@
+html,body{margin:0;height:100%;overflow:hidden}
+iframe{border:0;width:100%;height:100%;display:block}
+#aviso{position:fixed;inset:auto 0 0 0;padding:6px 10px;font:12px sans-serif;background:#fff3cd;color:#333}

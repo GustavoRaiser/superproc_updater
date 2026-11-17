@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'">
+  <title>Dicionário do corretor</title>
+  <link rel="stylesheet" href="manage.css">
+</head>
+<body>
+  <header>
+    <h1>Dicionário do corretor</h1>
+    <p>Listas locais, guardadas apenas neste perfil. <b>Dicionário</b>: palavras que passam a valer como corretas.
+       <b>Ignoradas</b>: não são sublinhadas, mas não são tratadas como corretas (estrangeirismos, siglas etc.).
+       <b>Expressões ignoradas</b>: frases de várias palavras (ex.: latim jurídico). Cada palavra da expressão passa a ser ignorada,
+       mesmo quando aparece solta. Dica: selecione o trecho no texto e use "Ignorar expressão selecionada" no botão direito.</p>
+  </header>
+  <main>
+    <section data-kind="dicionario">
+      <h2>Dicionário do usuário <span class="count"></span></h2>
+      <div class="add"><input type="text" maxlength="100" placeholder="Nova palavra" spellcheck="false" autocomplete="off"><button class="btn-add">Adicionar</button></div>
+      <input type="search" class="filter" placeholder="Filtrar" spellcheck="false" autocomplete="off">
+      <ul class="words"></ul>
+      <div class="tools"><button class="btn-import">Importar…</button><button class="btn-export">Exportar…</button></div>
+    </section>
+    <section data-kind="ignoradas">
+      <h2>Ignoradas <span class="count"></span></h2>
+      <div class="add"><input type="text" maxlength="100" placeholder="Nova palavra" spellcheck="false" autocomplete="off"><button class="btn-add">Adicionar</button></div>
+      <input type="search" class="filter" placeholder="Filtrar" spellcheck="false" autocomplete="off">
+      <ul class="words"></ul>
+      <div class="tools"><button class="btn-import">Importar…</button><button class="btn-export">Exportar…</button></div>
+    </section>
+    <section data-kind="expressoes">
+      <h2>Expressões ignoradas <span class="count"></span></h2>
+      <div class="add"><input type="text" maxlength="300" placeholder="Nova expressão (2 ou mais palavras)" spellcheck="false" autocomplete="off"><button class="btn-add">Adicionar</button></div>
+      <input type="search" class="filter" placeholder="Filtrar" spellcheck="false" autocomplete="off">
+      <ul class="words"></ul>
+      <div class="tools"><button class="btn-import">Importar…</button><button class="btn-export">Exportar…</button></div>
+    </section>
+  </main>
+  <footer><span id="status" role="status"></span><button id="btn-close">Fechar</button></footer>
+  <script src="manage.js"></script>
+</body>
+</html>

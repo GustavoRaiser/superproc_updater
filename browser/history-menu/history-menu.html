@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Histórico de Navegação</title>
+  <link rel="stylesheet" href="history-menu.css">
+</head>
+<body>
+  <div class="history-card" id="history-card">
+    <!-- Cabeçalho -->
+    <div class="history-header">
+      <div class="header-top">
+        <div class="header-title-box">
+          <svg class="header-clock-icon" width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+          </svg>
+          <span class="header-title">Histórico</span>
+        </div>
+        <button class="btn-close-header" id="btn-close-menu" title="Fechar (Esc)">✕</button>
+      </div>
+
+      <!-- Abas Segmentadas: URLs Acessadas / Processos Acessados -->
+      <div class="history-tabs">
+        <button class="tab-btn active" id="tab-urls">
+          <span class="tab-icon">🌐</span>
+          <span class="tab-label">URLs Acessadas</span>
+          <span class="tab-badge" id="badge-urls">0</span>
+        </button>
+        <button class="tab-btn" id="tab-processes">
+          <span class="tab-icon">⚖</span>
+          <span class="tab-label">Processos Acessados</span>
+          <span class="tab-badge" id="badge-processes">0</span>
+        </button>
+      </div>
+
+      <!-- Campo de Busca em Tempo Real -->
+      <div class="search-container">
+        <svg class="search-icon" width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+        </svg>
+        <input type="text" id="history-search" placeholder="Filtrar por nome, URL ou número..." autocomplete="off">
+        <button class="btn-clear-search hidden" id="btn-clear-search" title="Limpar busca">✕</button>
+      </div>
+    </div>
+
+    <!-- Lista de Itens -->
+    <div class="history-content">
+      <div class="history-list" id="list-urls"></div>
+      <div class="history-list hidden" id="list-processes"></div>
+    </div>
+
+    <!-- Rodapé -->
+    <div class="history-footer">
+      <span class="footer-count" id="footer-count">0 itens</span>
+      <div class="footer-actions">
+        <button class="footer-btn" id="btn-clear-active" title="Limpar itens da aba atual">Limpar Aba</button>
+        <button class="footer-btn danger" id="btn-clear-all" title="Limpar todo o histórico">Limpar Tudo</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="history-menu.js"></script>
+</body>
+</html>

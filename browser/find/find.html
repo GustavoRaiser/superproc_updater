@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Localizar na página</title>
+  <link rel="stylesheet" href="find.css">
+</head>
+<body>
+  <div class="find-container">
+
+    <!-- ── Linha principal de busca ── -->
+    <div class="find-bar">
+      <div class="find-input-wrap">
+        <input type="text" id="find-input" placeholder="Localizar na página..." spellcheck="false" autocomplete="off">
+      </div>
+      <span id="find-count" class="find-count">0/0</span>
+      <div class="find-actions">
+        <button id="btn-find-prev" class="find-btn" title="Anterior (Shift+Enter)">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z"/>
+          </svg>
+        </button>
+        <button id="btn-find-next" class="find-btn" title="Próxima (Enter)">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+          </svg>
+        </button>
+        <button id="btn-find-close" class="find-btn find-close" title="Fechar (Esc)">✕</button>
+      </div>
+    </div>
+
+    <!-- ── Barra de toggle do glossário ── -->
+    <div class="gloss-toggle-bar" id="gloss-toggle-bar">
+      <label class="gloss-toggle-label" title="Mostrar contexto de cada ocorrência">
+        <input type="checkbox" id="gloss-toggle">
+        <span class="gloss-toggle-text">Glossário</span>
+      </label>
+      <label class="gloss-toggle-label" title="Diferenciar maiúsculas de minúsculas">
+        <input type="checkbox" id="opt-case">
+        <span class="gloss-toggle-text">Aa</span>
+      </label>
+      <label class="gloss-toggle-label" title="Somente palavras inteiras">
+        <input type="checkbox" id="opt-word">
+        <span class="gloss-toggle-text">Palavras inteiras</span>
+      </label>
+      <span id="gloss-entry-count" class="gloss-entry-count"></span>
+    </div>
+
+    <!-- ── Painel de glossário (aparece quando checkbox ativo) ── -->
+    <div class="gloss-panel" id="gloss-panel">
+      <div class="gloss-list" id="gloss-list"></div>
+    </div>
+
+  </div>
+  <script src="find.js"></script>
+</body>
+</html>

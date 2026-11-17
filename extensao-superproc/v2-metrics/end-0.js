@@ -1,0 +1,1 @@
+{ const m=globalThis.__superprocLoadV2; if(m){if(m.samples.length<256)m.samples.push({group:"superproc-0",syncMs:performance.now()-m.starts["superproc-0"],frame:window.top===window?'top':'child'});delete m.starts["superproc-0"];} }

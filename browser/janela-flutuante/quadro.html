@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<title>Janela</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; user-select: none; font: 12px Arial, sans-serif; }
+  body { background: #1e3a5f; box-sizing: border-box; border: 1px solid #0f2540; }
+  #barra { position: absolute; left: 0; right: 0; top: 4px; height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; color: #fff; cursor: move; }
+  #titulo { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; }
+  button { flex: none; width: 24px; height: 22px; border-radius: 4px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.15); color: #fff; cursor: pointer; font-size: 12px; line-height: 1; }
+  button:hover { background: rgba(255,255,255,.3); }
+  #fechar { background: #ef4444; border-color: #ef4444; }
+  #fechar:hover { background: #dc2626; }
+  .alca { position: absolute; }
+</style>
+</head>
+<body>
+  <div id="barra"><span id="titulo"></span><button id="max" title="Maximizar / restaurar (duplo clique na barra)">&#9634;</button><button id="fechar" title="Fechar (Esc)">&#10005;</button></div>
+  <div class="alca" data-modo="n" style="top:0;left:8px;right:8px;height:5px;cursor:ns-resize"></div>
+  <div class="alca" data-modo="s" style="bottom:0;left:8px;right:8px;height:6px;cursor:ns-resize"></div>
+  <div class="alca" data-modo="w" style="left:0;top:8px;bottom:8px;width:6px;cursor:ew-resize"></div>
+  <div class="alca" data-modo="e" style="right:0;top:8px;bottom:8px;width:6px;cursor:ew-resize"></div>
+  <div class="alca" data-modo="nw" style="top:0;left:0;width:10px;height:10px;cursor:nwse-resize"></div>
+  <div class="alca" data-modo="ne" style="top:0;right:0;width:10px;height:10px;cursor:nesw-resize"></div>
+  <div class="alca" data-modo="sw" style="bottom:0;left:0;width:10px;height:10px;cursor:nesw-resize"></div>
+  <div class="alca" data-modo="se" style="bottom:0;right:0;width:10px;height:10px;cursor:nwse-resize"></div>
+  <script src="quadro.js"></script>
+</body>
+</html>

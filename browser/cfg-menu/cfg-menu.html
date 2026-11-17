@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Configurações SuperPROC</title>
+  <link rel="stylesheet" href="cfg-menu.css">
+</head>
+<body role="dialog" aria-label="Configurações e opções">
+  <!-- Submenu de Addons: abre à esquerda do cartão ao passar o mouse no item "Addons" -->
+  <div class="flyout hidden" id="flyout-addons" role="group" aria-label="Addons">
+    <div class="addon-row" data-key="azflow">
+      <button class="addon-name" data-open="open-azflow" title="Abrir opções do AZflow (instale pela chave ao lado)">
+        <span class="addon-icon glyph glyph-az">AZ</span>
+        <span>AZflow</span>
+      </button>
+      <button class="switch" role="switch" aria-checked="true" aria-label="Carregar AZflow" data-toggle="azflow"><span class="knob"></span></button>
+      <button type="button" class="btn-install" data-install="azflow" aria-label="Instalar AZflow da Chrome Web Store">Instalar</button>
+    </div>
+    <div class="addon-row" data-key="epryx">
+      <button class="addon-name" data-open="open-epryx" title="Abrir configurações da Epryx">
+        <span class="addon-icon glyph glyph-ep">E</span>
+        <span>Epryx</span>
+      </button>
+      <button class="switch" role="switch" aria-checked="true" aria-label="Carregar Epryx" data-toggle="epryx"><span class="knob"></span></button>
+      <button type="button" class="btn-install" data-install="epryx" aria-label="Instalar Epryx da Chrome Web Store">Instalar</button>
+    </div>
+    <div class="addon-row" data-key="superproc">
+      <button class="addon-name" data-open="open-superproc" title="Abrir preferências do SuperPROC">
+        <span class="addon-icon glyph glyph-sp" aria-hidden="true">SP</span>
+        <span>SuperPROC</span>
+      </button>
+      <button class="switch" role="switch" aria-checked="true" aria-label="Carregar extensão SuperPROC" data-toggle="superproc"><span class="knob"></span></button>
+      <button type="button" class="btn-install" data-install="superproc" aria-label="Instalar a extensão SuperPROC">Instalar</button>
+    </div>
+    <div class="addon-row" data-key="pdf">
+      <span class="addon-name static">
+        <span class="addon-icon glyph glyph-pdf">PDF</span>
+        <span>Leitor PDF</span>
+      </span>
+      <button class="switch" role="switch" aria-checked="true" aria-label="Carregar leitor PDF.js" data-toggle="pdf"><span class="knob"></span></button>
+    </div>
+    <div class="flyout-footer">
+      <button class="btn-update-extensions" id="btn-update" title="Atualizar extensões" aria-label="Atualizar extensões"><span id="update-btn-text">↻</span> ATUALIZAR</button>
+    </div>
+  </div>
+
+  <!-- Submenu Atualizar o SuperPROC: duas chaves, estado e botão de ação -->
+  <div class="flyout hidden" id="flyout-atualizacao" role="group" aria-label="Atualização do SuperPROC">
+    <div class="col-row" title="Consulta o servidor de atualização ao abrir o SuperPROC e a cada 24 horas. Não baixa nem instala nada sozinha.">
+      <span class="mode-text"><span class="mode-name">Verificar atualizações disponíveis</span><span class="mode-desc">Consulta ao abrir e a cada 24 h.</span></span>
+      <button class="switch" id="switch-atualizacao-verificar" role="switch" aria-checked="true" aria-label="Verificar atualizações disponíveis"><span class="knob"></span></button>
+    </div>
+    <div class="col-row" title="Baixa a versão nova em segundo plano e a instala ao fechar o SuperPROC. Exige a verificação ligada.">
+      <span class="mode-text"><span class="mode-name">Atualizar automaticamente</span><span class="mode-desc">Baixa sozinho; instala ao fechar.</span></span>
+      <button class="switch" id="switch-atualizacao-automatica" role="switch" aria-checked="false" aria-label="Atualizar automaticamente"><span class="knob"></span></button>
+    </div>
+    <div class="flyout-footer">
+      <button class="btn-update-extensions" id="btn-atualizacao-acao" type="button"><span id="atualizacao-acao-texto">VERIFICAR AGORA</span></button>
+    </div>
+    <div class="flyout-hint" id="atualizacao-status" role="status" aria-live="polite">Versão instalada: —</div>
+  </div>
+
+  <!-- Submenu Modo de abertura: abre à esquerda do cartão ao passar o mouse no item -->
+  <div class="flyout hidden" id="flyout-abertura" role="group" aria-label="Modo de abertura e layout">
+    <div role="radiogroup" aria-label="Modo de abertura">
+    <div class="mode-row" role="radio" aria-checked="false" data-modo="simples" tabindex="0">
+      <span class="mode-dot" aria-hidden="true"></span>
+      <span class="mode-text"><span class="mode-name">Simples</span><span class="mode-desc">Navegador comum: aba abre aba, janela abre janela.</span></span>
+    </div>
+    <div class="mode-row" role="radio" aria-checked="true" data-modo="integrada" tabindex="0">
+      <span class="mode-dot" aria-hidden="true"></span>
+      <span class="mode-text"><span class="mode-name">Integrada</span><span class="mode-desc">Capa, editor e árvore/documentos em uma aba unificada.</span></span>
+    </div>
+    <div class="mode-row" role="radio" aria-checked="false" data-modo="doisMonitores" tabindex="0">
+      <span class="mode-dot" aria-hidden="true"></span>
+      <span class="mode-text"><span class="mode-name">Dois monitores</span><span class="mode-desc" id="desc-dois-monitores">Árvore/documentos no monitor oposto.</span></span>
+    </div>
+    </div>
+    <div class="mode-divider" role="separator"></div>
+    <div class="col-row" id="row-coluna-copilot" title="Mostra o Copilot fixo em uma coluna à esquerda da janela principal (vale em qualquer modo).">
+      <span class="mode-text"><span class="mode-name">Coluna Copilot</span><span class="mode-desc">Copilot fixo à esquerda da janela principal.</span></span>
+      <button class="switch" id="switch-coluna-copilot" role="switch" aria-checked="false" aria-label="Coluna Copilot"><span class="knob"></span></button>
+    </div>
+    <div class="pct-block" id="pct-block">
+      <label class="pct-row" id="row-pct-copilot"><span>Largura da coluna</span><span class="pct-field"><input type="number" id="pct-copilot" min="15" max="50" step="5" value="25" aria-label="Largura da coluna do Copilot em porcentagem da janela principal"><em>%</em></span></label>
+      <label class="pct-row" id="row-pct-arvore"><span>Árvore/documentos</span><span class="pct-field"><input type="number" id="pct-arvore" min="20" max="80" step="5" value="50" aria-label="Largura da árvore/documentos em porcentagem da área de conteúdo"><em>%</em></span></label>
+    </div>
+    <div class="mode-divider" role="separator"></div>
+    <div class="col-row" id="row-relacionados-pilha" title="Processos abertos a partir da capa de outro processo ficam sob a mesma aba, com o botão RELACIONADOS. Desligue para que cada um tenha sua própria aba.">
+      <span class="mode-text"><span class="mode-name">Relacionados sob mesma aba</span><span class="mode-desc">Agrupa os processos relacionados em uma só aba.</span></span>
+      <button class="switch" id="switch-relacionados-pilha" role="switch" aria-checked="true" aria-label="Relacionados sob mesma aba"><span class="knob"></span></button>
+    </div>
+    <div class="flyout-hint">A mudança vale já para a aba ativa. Dois monitores exige exatamente 2 monitores; nele, a coluna ocupa só a janela principal.</div>
+  </div>
+
+  <!-- Submenu Conta Microsoft: atalhos padrão do Microsoft 365 (os ids conferem com DESTINOS de conta-microsoft.js) -->
+  <div class="flyout hidden" id="flyout-conta" role="group" aria-label="Conta Microsoft">
+    <div class="conta-aviso hidden" id="conta-aviso" role="note">
+      <strong>Login com limitações técnicas no momento.</strong>
+      Organizações que exigem aprovação de administrador para aplicativos não verificados, como o TJSC, bloqueiam o acesso. As opções abaixo ficam desativadas até isso ser resolvido.
+    </div>
+    <div id="conta-deslogada">
+      <div class="flyout-hint">Entre com sua conta Microsoft para ter aqui os atalhos do Microsoft 365. O login vale só para este app; as abas abertas pedem o seu próprio login.</div>
+      <div class="flyout-footer">
+        <button class="btn-update-extensions" id="btn-conta-entrar" type="button">ENTRAR COM MICROSOFT</button>
+      </div>
+    </div>
+    <div id="conta-logada" class="hidden">
+      <div class="conta-cabeca" id="conta-cabeca"></div>
+      <button type="button" class="menu-item" data-conta-abrir="conta"><span class="item-label">Gerenciar conta Microsoft</span></button>
+      <button type="button" class="menu-item" data-conta-abrir="m365"><span class="item-label">Microsoft 365</span></button>
+      <button type="button" class="menu-item" data-conta-abrir="copilot"><span class="item-label">Copilot</span></button>
+      <button type="button" class="menu-item" data-conta-abrir="outlook"><span class="item-label">Outlook</span></button>
+      <button type="button" class="menu-item" data-conta-abrir="onedrive"><span class="item-label">OneDrive</span></button>
+      <button type="button" class="menu-item" data-conta-abrir="teams"><span class="item-label">Teams</span></button>
+      <div class="mode-divider" role="separator"></div>
+      <button type="button" class="menu-item" id="btn-conta-trocar"><span class="item-label">Entrar com outra conta</span></button>
+      <button type="button" class="menu-item" id="btn-conta-sair"><span class="item-label">Sair da conta</span></button>
+    </div>
+  </div>
+
+  <div class="cfg-card" id="cfg-card">
+
+    <!-- Menu principal (clique na engrenagem) -->
+    <div id="menu-main">
+      <button type="button" class="menu-item" data-action="manage-links">
+        <span class="item-icon">⚡</span>
+        <span class="item-label">Configurar Acesso Rápido</span>
+      </button>
+
+      <button type="button" class="menu-item" data-action="focus-url">
+        <span class="item-icon">🔍</span>
+        <span class="item-label">Verificar Url</span>
+        <span class="item-shortcut">Ctrl+L</span>
+      </button>
+
+      <button type="button" class="menu-item" data-action="save-page">
+        <span class="item-icon">💾</span>
+        <span class="item-label">Salvar Página</span>
+      </button>
+
+      <div class="menu-item item-atalho" id="item-atalho-pdf" title="Anexa ao chat do Copilot o PDF aberto no leitor. Vale com o foco em qualquer aba.">
+        <span class="item-icon">📎</span>
+        <span class="item-label">PDF no Copilot</span>
+        <span class="atalho-ctrl">
+          <button type="button" class="atalho-btn" id="btn-atalho-pdf" aria-label="Definir atalho do botão PDF do Copilot">Definir…</button>
+          <button type="button" class="atalho-limpar hidden" id="btn-atalho-limpar" aria-label="Remover atalho" title="Remover atalho">✕</button>
+        </span>
+      </div>
+      <div class="atalho-status hidden" id="atalho-status" role="status" aria-live="polite"></div>
+
+      <div class="menu-item item-atalho" id="item-atalho-mn" title="Anexa ao chat do Copilot a minuta aberta. Vale com o foco em qualquer aba.">
+        <span class="item-icon">📝</span>
+        <span class="item-label">Minuta no Copilot</span>
+        <span class="atalho-ctrl">
+          <button type="button" class="atalho-btn" id="btn-atalho-mn" aria-label="Definir atalho do botão Minuta do Copilot">Definir…</button>
+          <button type="button" class="atalho-limpar hidden" id="btn-atalho-mn-limpar" aria-label="Remover atalho" title="Remover atalho">✕</button>
+        </span>
+      </div>
+      <div class="atalho-status hidden" id="atalho-mn-status" role="status" aria-live="polite"></div>
+
+      <div class="menu-item item-atalho" id="item-atalho-fc" title="Leva o cursor ao campo de conversa da coluna do Copilot (requer a Coluna Copilot ligada).">
+        <span class="item-icon">✨</span>
+        <span class="item-label">Ir ao Copilot</span>
+        <span class="atalho-ctrl">
+          <button type="button" class="atalho-btn" id="btn-atalho-fc" aria-label="Definir atalho do Copilot">Definir…</button>
+          <button type="button" class="atalho-limpar hidden" id="btn-atalho-fc-limpar" aria-label="Remover atalho" title="Remover atalho">✕</button>
+        </span>
+      </div>
+      <div class="atalho-status hidden" id="atalho-fc-status" role="status" aria-live="polite"></div>
+
+      <div class="menu-item item-atalho" id="item-atalho-at" title="Alteração de Texto: abre a caixa de instruções para alterar/destacar o texto selecionado no editor (requer a Coluna Copilot ligada).">
+        <span class="item-icon">✍️</span>
+        <span class="item-label">Alteração de Texto</span>
+        <span class="atalho-ctrl">
+          <button type="button" class="atalho-btn" id="btn-atalho-at" aria-label="Definir atalho de Alteração de Texto">Definir…</button>
+          <button type="button" class="atalho-limpar hidden" id="btn-atalho-at-limpar" aria-label="Remover atalho" title="Remover atalho">✕</button>
+        </span>
+      </div>
+      <div class="atalho-status hidden" id="atalho-at-status" role="status" aria-live="polite"></div>
+
+      <div class="menu-divider"></div>
+
+      <button type="button" class="menu-item has-flyout" id="item-abertura" aria-controls="flyout-abertura" aria-expanded="false">
+        <span class="item-icon">🪟</span>
+        <span class="item-label">Modo de abertura</span>
+        <span class="item-arrow">◂</span>
+      </button>
+
+      <button type="button" class="menu-item has-flyout" id="item-addons" aria-controls="flyout-addons" aria-expanded="false">
+        <span class="item-icon">🧩</span>
+        <span class="item-label">Addons</span>
+        <span class="item-arrow">◂</span>
+      </button>
+
+      <button type="button" class="menu-item" data-action="settings">
+        <span class="item-icon">⚙</span>
+        <span class="item-label">Configurações</span>
+      </button>
+
+      <button type="button" class="menu-item has-flyout" id="item-atualizacao" aria-controls="flyout-atualizacao" aria-expanded="false">
+        <span class="item-icon">⬇</span>
+        <span class="item-label">Atualizar o SuperPROC</span>
+        <span class="item-arrow">◂</span>
+      </button>
+
+      <div class="menu-divider"></div>
+
+      <!-- Conta Microsoft: sem login, clicar inicia o login; com login, abre o submenu de atalhos do Microsoft 365 -->
+      <button type="button" class="menu-item has-flyout conta-bloco" id="item-conta" aria-controls="flyout-conta" aria-expanded="false">
+        <span class="conta-foto" id="conta-foto" aria-hidden="true"></span>
+        <span class="conta-textos">
+          <span class="conta-linha1"><span class="conta-tipo hidden" id="conta-tipo"></span><span class="conta-nome" id="conta-nome">Entrar com conta Microsoft</span></span>
+          <span class="conta-sub" id="conta-sub">Trabalho ou pessoal</span>
+        </span>
+        <span class="item-arrow">◂</span>
+      </button>
+    </div>
+
+    <!-- Menu secreto de desenvolvedor (botão direito na engrenagem) -->
+    <div id="menu-dev" class="hidden">
+      <button type="button" class="menu-item" data-action="toggle-devtools">
+        <span class="item-icon">🛠</span>
+        <span class="item-label">Ferramentas de Desenvolvedor</span>
+      </button>
+
+      <button type="button" class="menu-item menu-checkbox-item" id="item-debugger" data-action="toggle-debugger" aria-pressed="false">
+        <span class="item-check hidden" id="check-debugger">✓</span>
+        <span class="item-label">Modo Debugger (Sessão &amp; Eproc)</span>
+      </button>
+    </div>
+
+  </div>
+
+  <script src="../quick-shortcut-core.js"></script>
+  <script src="cfg-menu.js"></script>
+</body>
+</html>

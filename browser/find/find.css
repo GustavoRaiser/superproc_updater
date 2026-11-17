@@ -1,0 +1,377 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0 !important;
+  user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 12px;
+}
+
+/* ── Container principal ── */
+.find-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #171d27;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-top: 2px solid #057ba9;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+/* ── Linha de busca principal (38px) ── */
+.find-bar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  flex-shrink: 0;
+  padding: 0 4px 0 8px;
+  gap: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.find-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+#find-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 12px;
+  user-select: text;
+}
+
+#find-input::placeholder {
+  color: #8292a7;
+  font-size: 11.5px;
+}
+
+.find-count {
+  font-size: 11px;
+  color: #94a3b8;
+  padding: 0 4px;
+  white-space: nowrap;
+  font-family: monospace;
+  min-width: 32px;
+  text-align: center;
+}
+
+.find-count.has-matches {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.find-count.no-matches {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.find-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.find-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.find-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.find-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.find-btn.find-close {
+  font-size: 13px;
+  margin-left: 2px;
+}
+
+.find-btn.find-close:hover {
+  background: #d32f2f;
+  color: #ffffff;
+}
+
+/* ── Barra de toggle do glossário (22px) ── */
+.gloss-toggle-bar {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.gloss-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gloss-toggle-label input[type="checkbox"] {
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.gloss-toggle-text {
+  font-size: 10.5px;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.gloss-toggle-label:hover .gloss-toggle-text {
+  color: #cbd5e1;
+}
+
+.gloss-entry-count {
+  font-size: 10px;
+  color: #64748b;
+  font-family: monospace;
+  margin-left: auto;
+}
+
+.gloss-entry-count.has-results {
+  color: #38bdf8;
+}
+
+/* ── Painel do glossário (altura dinâmica) ── */
+.gloss-panel {
+  flex: 1;
+  overflow: hidden;
+  display: none;
+  flex-direction: column;
+}
+
+.gloss-panel.is-open {
+  display: flex;
+}
+
+.gloss-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.gloss-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+.gloss-list::-webkit-scrollbar {
+  width: 4px;
+}
+.gloss-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.gloss-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+}
+
+/* ── Cada entrada do glossário ── */
+.gloss-entry {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 34px;
+  padding: 0 8px 0 24px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.1s;
+}
+
+.gloss-entry:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.gloss-entry.is-active {
+  background: rgba(56, 189, 248, 0.18);
+  border-left: 2px solid #38bdf8;
+}
+
+.gloss-entry:last-child {
+  border-bottom: none;
+}
+
+/* Linha de número do resultado */
+.gloss-entry-idx {
+  position: absolute;
+  left: 4px;
+  top: 3px;
+  font-size: 9px;
+  color: #3d4f63;
+  font-family: monospace;
+  line-height: 1;
+  z-index: 2;
+}
+
+/* Contexto: a ocorrência fica no centro da linha; antes e depois ocupam o espaço restante (sem quebra). */
+.gloss-entry-text {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: pre;
+  line-height: 34px;
+}
+
+.gloss-entry-text .ctx-before,
+.gloss-entry-text .ctx-after {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+/* O trecho anterior é cortado pela esquerda (mostra o fim); o posterior, pela direita (mostra o começo). */
+.gloss-entry-text .ctx-before {
+  justify-content: flex-end;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px);
+  mask-image: linear-gradient(to right, transparent 0, #000 22px);
+}
+.gloss-entry-text .ctx-after {
+  justify-content: flex-start;
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 22px);
+  mask-image: linear-gradient(to left, transparent 0, #000 22px);
+}
+
+.gloss-entry-text .ctx-before { color: #64748b; }
+.gloss-entry-text .ctx-match  {
+  flex: 0 1 auto;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #ffffff;
+  font-weight: 600;
+  background: rgba(56, 189, 248, 0.18);
+  padding: 1px 2px;
+}
+.gloss-entry-text .ctx-after  { color: #64748b; }
+
+/* Estado vazio / carregando */
+.gloss-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  font-size: 10.5px;
+  color: #3d4f63;
+  font-style: italic;
+}
+
+/* ── Tema do painel (fundo azul, igual à borda de fixado) ── */
+.find-container.is-panel {
+  background: #00547a;
+  border-color: rgba(255, 255, 255, 0.28);
+  border-top-color: #00cfff;
+}
+
+.find-container.is-panel .find-bar {
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.find-container.is-panel #find-input {
+  color: #e0f7ff;
+}
+
+.find-container.is-panel #find-input::placeholder {
+  color: rgba(200, 240, 255, 0.55);
+}
+
+.find-container.is-panel .find-count {
+  color: #a8e8ff;
+}
+
+.find-container.is-panel .find-count.has-matches {
+  color: #ffffff;
+}
+
+.find-container.is-panel .find-count.no-matches {
+  color: #ffb3b3;
+}
+
+.find-container.is-panel .find-btn {
+  color: #cceeff;
+}
+
+.find-container.is-panel .find-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.find-container.is-panel .gloss-toggle-bar {
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.find-container.is-panel .gloss-toggle-text {
+  color: #a8e8ff;
+}
+
+.find-container.is-panel .gloss-entry-text .ctx-before,
+.find-container.is-panel .gloss-entry-text .ctx-after {
+  color: #6bbdd4;
+}
+
+.find-container.is-panel .gloss-entry-text .ctx-match {
+  color: #ffffff;
+  background: rgba(0, 207, 255, 0.22);
+}
+
+.find-container.is-panel .gloss-entry:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.find-container.is-panel .gloss-entry.is-active {
+  background: rgba(0, 207, 255, 0.25);
+  border-left: 2px solid #00cfff;
+}
