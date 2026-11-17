@@ -2,7 +2,7 @@
 
 [![Baixar Instalador Automático (C:\SuperPROC)](./assets/botao-instalador.svg)](https://github.com/GustavoRaiser/superproc_updater/raw/main/Instalar-SuperPROC.bat)
 
-[![Baixar Pacote Portátil Completo (.ZIP)](./assets/botao-zip.svg)](https://github.com/GustavoRaiser/superproc_updater/releases/latest)
+[![Baixar Pacote Portátil Completo (.ZIP)](./assets/botao-zip.svg)](https://storage.googleapis.com/superproc_updater/SuperPROC-latest.zip)
 
 ---
 
