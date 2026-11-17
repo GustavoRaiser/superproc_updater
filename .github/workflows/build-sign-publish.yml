@@ -1,0 +1,144 @@
+name: Build, Sign (SignPath) & Publish to GCS
+# Etapas 3 e 4:
+# 3. Compila SuperPROC_v2.exe e o instalador nativo SuperPROC-Setup.exe (NSIS), empacota e envia ao SignPath Foundation (quando configurado).
+# 4. Gera o manifesto Ed25519 com o SHA-256 final dos artefatos assinados e envia tudo para o bucket superproc_updater no Google Cloud Storage.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      notas:
+        description: 'Notas da versão'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-sign:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout código-fonte público
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Recusar configuração privada
+        shell: pwsh
+        run: |
+          if (Test-Path config/atualizacao.local.json) { throw 'Configuração privada presente; build recusado.' }
+
+      - name: Instalar dependências do lockfile
+        run: npm ci --no-audit --no-fund
+
+      - name: Instalar runtime Windows do Electron
+        run: node node_modules/electron/install.js
+
+      - name: Executar testes do pacote e atualizador
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .test-runs | Out-Null
+          node scripts/test-composicao.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-atualizacao-app.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-atualizacao-zip.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/test-publicar.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Compilar pacote portátil (SuperPROC_v2.exe)
+        run: npm run export
+
+      - name: Compilar instalador nativo (SuperPROC-Setup.exe)
+        shell: pwsh
+        run: |
+          $version = (node -p "require('./package.json').version").Trim()
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            $makensis = (Get-Command makensis.exe).Source
+          }
+          & $makensis "/DPRODUCT_VERSION=$version" "instalador\SuperPROC-Setup.nsi"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "exports\SuperPROC-Setup.exe")) { throw "SuperPROC-Setup.exe não foi gerado." }
+
+      - name: Preparar pacote para assinatura SignPath
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force signpath-in | Out-Null
+          $zip = @(Get-ChildItem exports -Filter 'SuperPROC-v2-*.zip')[0]
+          Copy-Item $zip.FullName -Destination "signpath-in\$($zip.Name)"
+          Copy-Item "exports\SuperPROC-Setup.exe" -Destination "signpath-in\SuperPROC-Setup.exe"
+          Compress-Archive -Path "signpath-in\*" -DestinationPath "signpath-bundle.zip" -Force
+
+      - name: Assinar binários via SignPath Foundation
+        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+        uses: SignPath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: 'default'
+          input-artifact-path: 'signpath-bundle.zip'
+          output-artifact-path: 'signpath-signed.zip'
+          wait-for-completion: true
+
+      - name: Aplicar artefatos assinados (se SignPath ativo)
+        shell: pwsh
+        run: |
+          if (Test-Path "signpath-signed.zip") {
+            Write-Host "Extraindo artefatos assinados pela SignPath Foundation..."
+            Expand-Archive -Path "signpath-signed.zip" -DestinationPath "signpath-out" -Force
+            $signedZip = @(Get-ChildItem "signpath-out" -Filter 'SuperPROC-v2-*.zip')[0]
+            $signedSetup = Join-Path "signpath-out" "SuperPROC-Setup.exe"
+            if ($signedZip) { Copy-Item $signedZip.FullName -Destination "exports\$($signedZip.Name)" -Force }
+            if (Test-Path $signedSetup) { Copy-Item $signedSetup -Destination "exports\SuperPROC-Setup.exe" -Force }
+          } else {
+            Write-Warning "SIGNPATH_API_TOKEN não configurado; publicando artefatos sem assinatura Authenticode."
+          }
+
+      - name: Gerar manifesto Ed25519 e SHA-256 final
+        shell: pwsh
+        env:
+          SUPERPROC_PRIVATE_KEY_PEM: ${{ secrets.SUPERPROC_PRIVATE_KEY_PEM }}
+          INPUT_NOTAS: ${{ inputs.notas }}
+        run: |
+          $zip = @(Get-ChildItem exports -Filter 'SuperPROC-v2-*.zip')[0]
+          $hash = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($zip.Name)" | Set-Content exports/SHA256SUMS.txt -Encoding ascii
+          $setupHash = (Get-FileHash "exports\SuperPROC-Setup.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$setupHash  SuperPROC-Setup.exe" | Add-Content exports/SHA256SUMS.txt -Encoding ascii
+
+          Copy-Item $zip.FullName -Destination "exports\SuperPROC-latest.zip" -Force
+
+          if (-not $env:SUPERPROC_PRIVATE_KEY_PEM) {
+            Write-Warning "Secret SUPERPROC_PRIVATE_KEY_PEM não configurado. Manifesto assinado não foi gerado."
+          } else {
+            $notasArg = if ($env:INPUT_NOTAS) { @('--notas', $env:INPUT_NOTAS) } else { @() }
+            node scripts/publicar.cjs --zip $zip.FullName @notasArg
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $man = @(Get-ChildItem exports/publicacao -Recurse -Filter 'manifesto-*.json')[0]
+            if ($man) { Copy-Item $man.FullName -Destination "exports\manifesto-latest.json" -Force }
+          }
+
+      - name: Autenticar no Google Cloud
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Upload para Google Cloud Storage (superproc_updater)
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: exports
+          destination: superproc_updater
+          parent: false

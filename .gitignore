@@ -1,0 +1,7 @@
+node_modules/
+exports/
+dist/
+.test-runs/
+*.log
+.env
+config/atualizacao.local.json
