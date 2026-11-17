@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="68" viewBox="0 0 560 68" role="img" aria-label="Baixar Instalador Automatico (C:\SuperPROC)">
+  <defs>
+    <linearGradient id="bgInst" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1f883d"/>
+      <stop offset="100%" stop-color="#1a7f37"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="558" height="66" rx="10" fill="url(#bgInst)" stroke="#116329" stroke-width="1.5"/>
+  <g transform="translate(22, 18)" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 3v18"/>
+    <path d="M9 14l7 7 7-7"/>
+    <path d="M4 27h24"/>
+  </g>
+  <text x="68" y="30" fill="#ffffff" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="0.3">BAIXAR INSTALADOR AUTOMÁTICO (C:\SuperPROC)</text>
+  <text x="68" y="50" fill="#dafbe1" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="12.5" font-weight="400">Baixa a versão mais recente, descompacta em C:\SuperPROC e cria atalho</text>
+</svg>
