@@ -33,7 +33,7 @@ chrome.runtime.onMessage.addListener((request, sender) => {
 
 /* action */
 chrome.action.onClicked.addListener(() => superprocOpenTab({
-  url: '/data/pdf.js/web/viewer.html?file=/data/viewer/welcome.pdf'
+  url: '/data/pdf.js/web/viewer.html?file='
 }));
 
 /* FAQs & Feedback */

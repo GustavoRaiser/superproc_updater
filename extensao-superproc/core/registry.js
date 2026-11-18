@@ -121,15 +121,6 @@ const MODULES_REGISTRY = [
         matches: ehCapaDoProcesso
     },
     {
-        id: 'capa_audiencia_valor_causa',
-        name: 'Capa - Audiência & Valor da Causa',
-        category: CATEGORIAS.CAPA,
-        description: 'Exibe a audiência designada, o valor da causa e o saldo de subcontas (execução fiscal) logo após os botões Lembretes/Minutas da capa.',
-        defaultEnabled: false,
-        scriptPath: 'modules/capa/audiencia_valor_causa.js',
-        matches: ehCapaDoProcesso
-    },
-    {
         id: 'capa_arrastar_localizadores',
         name: 'Capa - Arrastar Localizadores',
         category: CATEGORIAS.CAPA,

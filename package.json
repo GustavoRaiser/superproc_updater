@@ -1,6 +1,6 @@
 {
   "name": "superproc-v2",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SuperPROC v2 — otimizações em perfil independente",
   "main": "browser/main.js",
   "scripts": {
