@@ -62,7 +62,7 @@
     "azflow"
   ],
   "author": "SuperPROC Team",
-  "license": "ISC",
+  "license": "RPL-1.5",
   "devDependencies": {
     "electron": "45.3.3"
   },

@@ -57,3 +57,8 @@ Ainda no menu da engrenagem, acesse a opção **Addons**:
 ### 3. Realizar o login no Copilot e no eproc
 * **Login no eproc:** acesse o sistema normalmente na aba inicial. Os cookies de sessão são preservados ao fechar o navegador, respeitando o tempo de validade do próprio servidor do tribunal.
 * **Login no Copilot:** ao habilitar a **Coluna Copilot**, faça login com a sua conta Microsoft diretamente no painel lateral do Copilot (ou pelo item de conta Microsoft no menu da engrenagem). Uma vez autenticado, você também pode definir atalhos de teclado no menu da engrenagem para as funções **PDF no Copilot**, **Minuta no Copilot**, **Ir ao Copilot** e **Alteração de Texto**.
+
+
+## Licença
+
+O código do SuperPROC nesta revisão é disponibilizado sob a [Reciprocal Public License 1.5](LICENSE). Componentes de terceiros seguem as licenças e avisos próprios. As concessões ISC das versões anteriores permanecem válidas.
