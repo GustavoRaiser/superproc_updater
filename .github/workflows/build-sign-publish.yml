@@ -14,7 +14,7 @@ on:
         default: ''
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-and-sign:
@@ -154,3 +154,27 @@ jobs:
           path: exports
           destination: superproc_updater
           parent: false
+
+      - name: Publicar Release no GitHub (superproc_updater)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_NOTAS: ${{ inputs.notas }}
+        run: |
+          $version = (node -p "require('./package.json').version").Trim()
+          $tag = "v$version"
+          $zip = @(Get-ChildItem exports -Filter 'SuperPROC-v2-*.zip')[0]
+          $anexos = @($zip.FullName, "exports/SuperPROC-Setup.exe", "exports/SHA256SUMS.txt")
+          $man = @(Get-ChildItem exports/publicacao -Recurse -Filter 'manifesto-*.json' -ErrorAction SilentlyContinue)
+          if ($man) { $anexos += $man[0].FullName }
+          if (Test-Path "exports/manifesto-latest.json") { $anexos += "exports/manifesto-latest.json" }
+
+          Write-Host "Publicando release $tag no GitHub ($env:GITHUB_REPOSITORY)..."
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @anexos --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            $notas = if ($env:INPUT_NOTAS) { $env:INPUT_NOTAS } else { "SuperPROC v2 versão $version" }
+            gh release create $tag @anexos --repo $env:GITHUB_REPOSITORY --title "SuperPROC v2 - $version" --notes "$notas"
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
