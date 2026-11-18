@@ -1,6 +1,6 @@
 # SuperPROC v2
 
-[![Baixar Instalador Automático (C:\SuperPROC)](./assets/botao-instalador.svg)](https://storage.googleapis.com/superproc_updater/Instalar-SuperPROC.bat)
+[![Baixar Instalador Oficial (SuperPROC-Setup.exe)](./assets/botao-instalador.svg)](https://storage.googleapis.com/superproc_updater/SuperPROC-Setup.exe)
 
 [![Baixar Pacote Portátil Completo (.ZIP)](./assets/botao-zip.svg)](https://storage.googleapis.com/superproc_updater/SuperPROC-latest.zip)
 
@@ -8,15 +8,15 @@
 
 ## Como baixar e instalar o SuperPROC
 
-Você pode instalar o SuperPROC v2 de forma automática (recomendado) ou fazer a extração manual do pacote portátil:
+Você pode instalar o SuperPROC v2 usando o instalador oficial (recomendado) ou fazer a extração manual do pacote portátil:
 
-### Opção 1: Instalador Automático em `C:\SuperPROC` (Recomendado)
-1. Clique no botão verde **BAIXAR INSTALADOR AUTOMÁTICO (C:\SuperPROC)** no topo desta página para baixar o arquivo **`Instalar-SuperPROC.bat`**.
-2. Execute o arquivo **`Instalar-SuperPROC.bat`** baixado. Caso o Windows exiba a tela de proteção do SmartScreen, clique em **Mais informações** e, em seguida, em **Executar assim mesmo**.
-3. O instalador fará todo o processo sozinho: consultará a versão mais recente publicada neste repositório, baixará o arquivo `.zip`, conferirá a integridade do pacote, descompactará os arquivos dentro da pasta **`C:\SuperPROC`**, criará o atalho **SuperPROC v2** na sua Área de Trabalho e abrirá o navegador ao concluir.
+### Opção 1: Instalador Oficial para Windows (Recomendado)
+1. Clique no botão verde **BAIXAR INSTALADOR OFICIAL (SuperPROC-Setup.exe)** no topo desta página para baixar o instalador **`SuperPROC-Setup.exe`** diretamente do Google Cloud Storage.
+2. Execute o **`SuperPROC-Setup.exe`** baixado. Não é necessário ter privilégios de administrador. (Enquanto o processo de assinatura digital pela SignPath Foundation estiver em andamento, caso o Windows exiba a tela do SmartScreen, clique em **Mais informações** e, em seguida, em **Executar assim mesmo**.)
+3. O instalador baixará o pacote mais recente, extrairá os arquivos para `%LOCALAPPDATA%\SuperPROC` (ou outra pasta de sua escolha), criará os atalhos na Área de Trabalho e no Menu Iniciar e abrirá o navegador ao concluir.
 
 ### Opção 2: Download e extração manual do arquivo `.zip`
-1. Clique no botão azul **BAIXAR PACOTE PORTÁTIL COMPLETO (.ZIP)** acima (ou acesse a seção **Releases** à direita da página) e baixe apenas o arquivo **`.zip`** da versão mais recente. Os demais arquivos da release (`manifesto-*.json` e `SHA256SUMS.txt`) são de uso exclusivo do atualizador interno e não precisam ser baixados.
+1. Clique no botão azul **BAIXAR PACOTE PORTÁTIL COMPLETO (.ZIP)** acima para baixar o arquivo `SuperPROC-latest.zip`.
 2. Após concluir o download, **extraia todo o conteúdo do arquivo `.zip`** para uma pasta de sua preferência no computador (por exemplo, `C:\SuperPROC` ou Documentos). Não execute o programa diretamente de dentro do arquivo compactado sem antes extrair a pasta inteira.
 3. Abra a pasta extraída, localize o executável **`SuperPROC_v2.exe`** e inicie-o com dois cliques. Se desejar, crie um atalho para o `SuperPROC_v2.exe` na Área de Trabalho ou fixe-o na barra de tarefas.
 

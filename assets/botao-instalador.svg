@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="560" height="68" viewBox="0 0 560 68" role="img" aria-label="Baixar Instalador Automatico (C:\SuperPROC)">
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="68" viewBox="0 0 560 68" role="img" aria-label="Baixar Instalador Oficial (SuperPROC-Setup.exe)">
   <defs>
     <linearGradient id="bgInst" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#1f883d"/>
@@ -11,6 +11,6 @@
     <path d="M9 14l7 7 7-7"/>
     <path d="M4 27h24"/>
   </g>
-  <text x="68" y="30" fill="#ffffff" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="0.3">BAIXAR INSTALADOR AUTOMÁTICO (C:\SuperPROC)</text>
-  <text x="68" y="50" fill="#dafbe1" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="12.5" font-weight="400">Baixa a versão mais recente, descompacta em C:\SuperPROC e cria atalho</text>
+  <text x="68" y="30" fill="#ffffff" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="0.3">BAIXAR INSTALADOR OFICIAL (SuperPROC-Setup.exe)</text>
+  <text x="68" y="50" fill="#dafbe1" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="12.5" font-weight="400">Instalador nativo para Windows — não requer privilégios de administrador</text>
 </svg>
