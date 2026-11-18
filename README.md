@@ -13,7 +13,7 @@ Você pode instalar o SuperPROC v2 usando o instalador oficial (recomendado) ou 
 ### Opção 1: Instalador Oficial para Windows (Recomendado)
 1. Clique no botão verde **BAIXAR INSTALADOR OFICIAL (SuperPROC-Setup.exe)** no topo desta página para baixar o instalador **`SuperPROC-Setup.exe`** diretamente do Google Cloud Storage.
 2. Execute o **`SuperPROC-Setup.exe`** baixado. Não é necessário ter privilégios de administrador. (Enquanto o processo de assinatura digital pela SignPath Foundation estiver em andamento, caso o Windows exiba a tela do SmartScreen, clique em **Mais informações** e, em seguida, em **Executar assim mesmo**.)
-3. O instalador baixará o pacote mais recente, extrairá os arquivos para `%LOCALAPPDATA%\SuperPROC` (ou outra pasta de sua escolha), criará os atalhos na Área de Trabalho e no Menu Iniciar e abrirá o navegador ao concluir.
+3. O instalador baixará o pacote mais recente, extrairá os arquivos para **`C:\SuperPROC`** (ou outra pasta de sua escolha), criará os atalhos na Área de Trabalho e no Menu Iniciar e abrirá o navegador ao concluir.
 
 ### Opção 2: Download e extração manual do arquivo `.zip`
 1. Clique no botão azul **BAIXAR PACOTE PORTÁTIL COMPLETO (.ZIP)** acima para baixar o arquivo `SuperPROC-latest.zip`.

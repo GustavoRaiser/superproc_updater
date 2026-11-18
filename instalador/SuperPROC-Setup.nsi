@@ -16,7 +16,7 @@ Unicode True
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 OutFile "..\exports\SuperPROC-Setup.exe"
-InstallDir "$LOCALAPPDATA\SuperPROC"
+InstallDir "C:\SuperPROC"
 InstallDirRegKey HKCU "Software\SuperPROC_v2" "InstallDir"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
