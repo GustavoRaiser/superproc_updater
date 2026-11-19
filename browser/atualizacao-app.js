@@ -52,7 +52,7 @@ function compararVersoes(a, b) {
 function canonico(valor) {
   if (valor === null || typeof valor !== 'object') return JSON.stringify(valor);
   if (Array.isArray(valor)) return '[' + valor.map(canonico).join(',') + ']';
-  return '{' + Object.keys(valor).sort().map((k) => JSON.stringify(k) + ':' + canonico(valor[k])).join(',') + '}';
+  return '{' + Object.keys(valor).filter((k) => valor[k] !== undefined).sort().map((k) => JSON.stringify(k) + ':' + canonico(valor[k])).join(',') + '}';
 }
 function validarPayload(p) {
   if (!p || typeof p !== 'object') throw new Error('Manifesto sem conteúdo.');
@@ -118,6 +118,7 @@ function erroHttp(status) {
 
 async function lerLimitado(res, limite) {
   const partes = []; let total = 0;
+  if (!res.body) throw new ErroAtualizacao('rede', 'Resposta sem corpo.');
   for await (const parte of res.body) {
     total += parte.length;
     if (total > limite) throw new ErroAtualizacao('tamanho', 'Resposta maior que o permitido.');
@@ -249,6 +250,7 @@ async function baixarPacote({ fetchFn, apiKey, payload, zipUrl, zipId, destino, 
   try {
     const res = await fetchFn(urlDownload, { headers: headersHttp(urlDownload, apiKey), signal });
     if (!res.ok) throw erroHttp(res.status);
+    if (!res.body) throw new ErroAtualizacao('rede', 'Resposta sem corpo.');
     const hash = crypto.createHash('sha256'); let recebidos = 0, ultimoAviso = 0;
     fd = fs.openSync(parcial, 'wx');
     for await (const parte of res.body) {

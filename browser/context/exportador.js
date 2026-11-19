@@ -11,7 +11,7 @@ const { montarMarkdown } = require('./markdown');
 const ATALHO_ATIVA = Object.freeze({ code: 'KeyK', ctrl: true, alt: false, shift: true, meta: false });
 const ATALHO_TODAS = Object.freeze({ code: 'KeyJ', ctrl: true, alt: false, shift: true, meta: false });
 const PREFIXO = 'contexto-';
-const RE_ARQUIVO = /^contexto-\d{8}-\d{6}\.md$/;
+const RE_ARQUIVO = /^contexto-\d{8}-\d{6}(?:-\d{1,3})?\.md$/;
 const MOTIVOS = Object.freeze({
   'coluna-indisponivel': 'Abra a coluna do Copilot para compartilhar o contexto.',
   'sem-pagina': 'Nenhuma aba legível para compartilhar.',
@@ -78,8 +78,13 @@ function criarExportador({
       const arquivo = montarMarkdown({ tabs, geradoEm: agora().toISOString(), maxCaracteres, omitidas, perguntaFinal: false });
       fs.mkdirSync(pasta, { recursive: true });
       limparAntigos();
-      const caminho = path.join(pasta, `${PREFIXO}${carimbo(agora())}.md`);
-      fs.writeFileSync(caminho, arquivo.markdown, 'utf8');
+      const base = `${PREFIXO}${carimbo(agora())}`;
+      let caminho;
+      for (let i = 0; ; i++) { // 'wx' nunca sobrescreve: no mesmo segundo, acrescenta -2, -3…
+        caminho = path.join(pasta, `${base}${i ? '-' + (i + 1) : ''}.md`);
+        try { fs.writeFileSync(caminho, arquivo.markdown, { encoding: 'utf8', flag: 'wx' }); break; }
+        catch (e) { if (!e || e.code !== 'EEXIST' || i >= 99) throw e; }
+      }
       const copiado = await copiarArquivo(caminho).catch(() => false);
       mostrarColuna(); coluna.focus(); if (copiado) coluna.paste();
       revelar(caminho);

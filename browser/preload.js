@@ -92,22 +92,10 @@ contextBridge.exposeInMainWorld('superprocAPI', {
   toggleDevTools: () => ipcRenderer.send('toggle-devtools'),
   clearCache: () => ipcRenderer.invoke('clear-cache'),
   savePage: () => ipcRenderer.send('page-save'),
-  setZoom: (direction) => ipcRenderer.send('set-zoom', direction),
 
   // Busca na Página (Find in Page / Ctrl+F)
   openFind: (target = 'tab') => ipcRenderer.send('find-open', target),
   closeFind: () => ipcRenderer.send('find-close'),
-  findInPage: (text, options) => ipcRenderer.send('tab-find-in-page', { text, options }),
-  stopFindInPage: (action = 'clearSelection') => ipcRenderer.send('tab-stop-find-in-page', action),
-  onOpenFind: (callback) => {
-    ipcRenderer.on('tab-find-open', () => callback());
-  },
-  onStopFind: (callback) => {
-    ipcRenderer.on('tab-stop-find-in-page', () => callback());
-  },
-  onFoundInPage: (callback) => {
-    ipcRenderer.on('tab-found-in-page', (event, result) => callback(result));
-  },
 
   // Downloads & Arquivos
   selectDownloadFolder: () => ipcRenderer.invoke('select-download-folder'),
@@ -119,15 +107,5 @@ contextBridge.exposeInMainWorld('superprocAPI', {
   openDownloadedFile: (filePath) => ipcRenderer.send('open-downloaded-file', filePath),
   onDownloadsUpdated: (callback) => {
     ipcRenderer.on('downloads-updated', (event, data) => callback(data));
-  },
-
-  // Menus Flutuantes de Topo (Downloads & Histórico)
-  showDownloadsMenu: (coords) => ipcRenderer.send('show-downloads-menu', coords),
-  showHistoryMenu: (coords) => ipcRenderer.send('show-history-menu', coords),
-  getHistory: () => ipcRenderer.invoke('history-get'),
-  clearHistory: (type) => ipcRenderer.invoke('history-clear', type),
-  removeHistoryItem: (type, id) => ipcRenderer.invoke('history-remove-item', { type, id }),
-  onHistoryUpdated: (callback) => {
-    ipcRenderer.on('history-updated', (event, data) => callback(data));
   }
 });

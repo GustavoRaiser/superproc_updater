@@ -81,7 +81,7 @@ async function lerMapaAtivacao() {
 }
 export const Storage = {
     getEnabledMap:()=>lerMapaAtivacao(),
-    async isModuleEnabled(id,defaultVal=true){return (await this.getEnabledMap())[id] ?? defaultVal;},
+    async isModuleEnabled(id,defaultVal=false){return (await this.getEnabledMap())[id] ?? defaultVal;},
     setModuleEnabled:(id,value)=>mutate('module',{id,value}),
     setAllModules:map=>mutate('set',{[STORAGE_KEY_MODULES]:map}),
     async getModuleSettings(id){return (await read(STORAGE_KEY_SETTINGS))[id] || {};},

@@ -2491,7 +2491,7 @@ function _createPoolView(url) {
     if (input.key === 'Escape') { event.preventDefault(); closeSidePanel(); return; }
     if (input.key === 'F5' || (isCtrl && input.key.toLowerCase() === 'r')) {
       event.preventDefault();
-      if (!view.webContents.isDestroyed() && retryPanelCache(validatedURL)) view.webContents.reload();
+      if (!view.webContents.isDestroyed() && retryPanelCache(view.webContents.getURL())) view.webContents.reload();
       return;
     }
     if (isCtrl && input.key.toLowerCase() === 'f') { event.preventDefault(); openContextualFind(view.webContents, 'panel'); return; }
