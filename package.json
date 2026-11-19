@@ -1,6 +1,6 @@
 {
   "name": "superproc-v2",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "SuperPROC v2 — otimizações em perfil independente",
   "main": "browser/main.js",
   "scripts": {
@@ -64,7 +64,10 @@
   "author": "SuperPROC Team",
   "license": "RPL-1.5",
   "devDependencies": {
-    "electron": "45.3.3"
+    "electron": "45.3.3",
+    "flatbuffers": "^25.9.23",
+    "wireit": "^0.15.0",
+    "zx": "^8.8.5"
   },
   "dependencies": {
     "@azure/msal-node": "^7.1.2",
