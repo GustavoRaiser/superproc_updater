@@ -12,7 +12,7 @@ const BUFFER_SIZE = 64 * 1024;
 const APP_ENTRIES = ['browser', 'extensao-superproc', 'LEITORDEPDFCOMCAPACIDADEEMBEDDED', 'package.json', 'ICO_BROWSER.png'];
 const APP_DEPENDENCIES = ['node_modules/pdfjs-dist', 'node_modules/@napi-rs'];
 // AZflow e Epryx não vão no pacote: o usuário as instala da Chrome Web Store (ver browser/extensao-instalador.js).
-const FORBIDDEN_APP_PARTS = new Set(['azflow', 'epryx', 'extensoes-estaveis', '.test-runs', 'docs', 'exports', 'ferramentas-build', 'graphify-out', 'reports', 'scripts', 'AGENTS.md', 'README.md', 'package-lock.json', 'iniciar-browser.bat', '1 EXPORTAR_PARA_TRABALHO.bat']);
+const FORBIDDEN_APP_PARTS = new Set(['azflow', 'epryx', 'extensoes-estaveis', '.test-runs', 'docs', 'exports', 'ferramentas-build', 'graphify-out', 'propostas_de_correção', 'reports', 'scripts', 'AGENTS.md', 'README.md', 'package-lock.json', 'iniciar-browser.bat', '1 EXPORTAR_PARA_TRABALHO.bat']);
 
 function sha256File(file) {
   const hash = crypto.createHash('sha256'), fd = fs.openSync(file, 'r'), buffer = Buffer.allocUnsafe(BUFFER_SIZE);
