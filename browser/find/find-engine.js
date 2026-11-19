@@ -13,7 +13,8 @@
 // ---------------------------------------------------------------------------
 // Código executado DENTRO de cada frame (serializado com toString; precisa ser autocontido).
 // ---------------------------------------------------------------------------
-function superprocFindFrame(op, arg) {
+// `recortar` = superprocRecortarContexto (recorte-contexto.js), passado junto no código injetado.
+function superprocFindFrame(op, arg, recortar) {
   const STYLE_ID = '__superproc-find-style';
   const state = window.__superprocFind || (window.__superprocFind = { ranges: [], active: -1 });
   const WORD = '[\\p{L}\\p{N}_]';
@@ -61,6 +62,58 @@ function superprocFindFrame(op, arg) {
         return isRendered(parent, cache) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       }
     });
+  }
+
+  // Ferramentas do contexto do Glossário: percorredor de texto visível + <br>, bloco de cada nó e texto do nó
+  // com '\n' só onde o CSS preserva quebras (mesmo comprimento do original, para manter os índices).
+  function contextTools() {
+    const root = document.body || document.documentElement;
+    const visible = new Map();
+    const blocks = new Map();
+    const preserves = new Map();
+    const style = (el) => { try { return window.getComputedStyle(el); } catch (_) { return null; } };
+    const walker = root ? document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+      acceptNode(node) {
+        if (node.nodeType === 1) {
+          if (node.matches('script, style, noscript, svg, canvas, iframe, textarea')) return NodeFilter.FILTER_REJECT;
+          // display:contents não tem caixa própria (checkVisibility = false), mas os filhos aparecem.
+          if (!isRendered(node, visible) && (style(node) || {}).display !== 'contents') return NodeFilter.FILTER_REJECT;
+          return node.tagName === 'BR' ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+        }
+        return node.parentElement ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    }) : null;
+
+    // Bloco = ancestral mais próximo que não é "inline". Na camada de texto de um PDF (pdf.js), os trechos são
+    // posicionados de forma absoluta (viram "block"), mas formam o texto corrido da página: a camada é o bloco.
+    function blockOf(node) {
+      let el = node.nodeType === 1 ? node : node.parentElement;
+      const start = el;
+      if (blocks.has(start)) return blocks.get(start);
+      let found = root;
+      while (el && el !== root) {
+        if (el.classList && el.classList.contains('textLayer')) { found = el; break; }
+        const s = style(el);
+        const display = s ? s.display : 'inline';
+        if (display && !display.startsWith('inline') && display !== 'contents' &&
+            !(el.closest && el.closest('.textLayer'))) { found = el; break; }
+        el = el.parentElement;
+      }
+      blocks.set(start, found);
+      return found;
+    }
+
+    function textOf(node) {
+      const value = node.nodeValue || '';
+      const parent = node.parentElement;
+      if (!preserves.has(parent)) {
+        const s = parent ? style(parent) : null;
+        preserves.set(parent, !!s && /^(pre|pre-wrap|pre-line|break-spaces)$/.test(s.whiteSpace));
+      }
+      return preserves.get(parent) ? value.replace(/\r/g, ' ') : value.replace(/[\r\n]/g, ' ');
+    }
+
+    return { walker, blockOf, textOf };
   }
 
   // Percorre as ocorrências em ordem de documento. O callback devolve false para interromper.
@@ -149,33 +202,39 @@ function superprocFindFrame(op, arg) {
       return true;
     }
     case 'list': {
-      // Contexto suficiente para preencher a linha do Glossário; completa com o texto vizinho quando o nó é curto.
+      // Contexto da linha do Glossário: completa com o texto vizinho do mesmo bloco, marcando quebras de linha
+      // (<br>, texto pré-formatado) com '\n' e a troca de bloco com BLOCO (U+2029). O recorte por frase é feito
+      // por superprocRecortarContexto (recorte-contexto.js), a mesma regra usada no leitor de PDF.
+      const BLOCO = String.fromCharCode(0x2029);
       const regex = buildRegex(arg.term, arg.matchCase, arg.wholeWord);
       const CTX = 90;
-      const flat = (t) => t.replace(/\s+/g, ' ');
-      const around = makeWalker();
+      const LIMITE = CTX * 2;
+      const ctx = contextTools();
       const entries = [];
       forEachMatch(regex, (node, start, length) => {
-        const text = node.nodeValue;
+        const text = ctx.textOf(node);
         let before = text.substring(0, start);
         let after = text.substring(start + length);
-        if (around && (before.length < CTX || after.length < CTX)) {
-          let n; let guard = 0;
-          if (before.length < CTX) {
-            around.currentNode = node;
-            while (before.length < CTX && guard++ < 40 && (n = around.previousNode())) before = n.nodeValue + ' ' + before;
+        const block = ctx.blockOf(node);
+        if (ctx.walker) {
+          let n; let guard = 0; let sep = '';
+          ctx.walker.currentNode = node;
+          while (before.length < LIMITE && guard++ < 60 && (n = ctx.walker.previousNode())) {
+            if (n.nodeType !== 3) { sep = '\n'; continue; }
+            if (ctx.blockOf(n) !== block) { before = BLOCO + before; break; }
+            before = ctx.textOf(n) + sep + before;
+            sep = '';
           }
-          guard = 0;
-          if (after.length < CTX) {
-            around.currentNode = node;
-            while (after.length < CTX && guard++ < 40 && (n = around.nextNode())) after = after + ' ' + n.nodeValue;
+          guard = 0; sep = '';
+          ctx.walker.currentNode = node;
+          while (after.length < LIMITE && guard++ < 60 && (n = ctx.walker.nextNode())) {
+            if (n.nodeType !== 3) { sep = '\n'; continue; }
+            if (ctx.blockOf(n) !== block) { after += BLOCO; break; }
+            after += sep + ctx.textOf(n);
+            sep = '';
           }
         }
-        entries.push({
-          before: flat(before).slice(-CTX),
-          match: flat(text.substring(start, start + length)),
-          after: flat(after).slice(0, CTX)
-        });
+        entries.push(recortar(before, text.substring(start, start + length), after, CTX));
         return true;
       });
       return entries;
@@ -185,10 +244,15 @@ function superprocFindFrame(op, arg) {
   }
 }
 
+const { RECORTE_SOURCE } = require('./recorte-contexto');
 const FRAME_SOURCE = superprocFindFrame.toString();
 
+function frameCode(op, arg) {
+  return '(' + FRAME_SOURCE + ')(' + JSON.stringify(op) + ',' + JSON.stringify(arg || {}) + ',(' + RECORTE_SOURCE + '))';
+}
+
 function runInFrame(frame, op, arg) {
-  const code = '(' + FRAME_SOURCE + ')(' + JSON.stringify(op) + ',' + JSON.stringify(arg || {}) + ')';
+  const code = frameCode(op, arg);
   try {
     return Promise.resolve(frame.executeJavaScript(code)).catch(() => null);
   } catch (_) {
@@ -382,5 +446,6 @@ module.exports = {
   createFindController,
   listGlossary,
   // expostos para teste
-  _frameSource: FRAME_SOURCE
+  _frameSource: FRAME_SOURCE,
+  _frameCode: frameCode
 };

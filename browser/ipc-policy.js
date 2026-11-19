@@ -23,7 +23,7 @@ const LOCAL_CHANNELS = {
     downloads-clear downloads-menu-close downloads-start-file-drag`,
   history: `history-get history-open-url history-open-process history-item-action history-remove-item history-clear history-menu-close`,
   hover: `hover-menu-open-link hover-menu-open-add-dialog hover-menu-open-manage-dialog hover-sub-open
-    hover-sub-close hide-hover-menu cancel-hover-hide`,
+    hover-sub-close hide-hover-menu cancel-hover-hide hover-drag-start hover-drag-move hover-drag-target hover-drag-end`,
   find: 'find-search find-next find-stop find-close find-resize find-glossary-request find-glossary-jump',
   panel: `panel-toggle-pin panel-home panel-back panel-forward panel-reload panel-promote-to-tab panel-close
     panel-hide panel-resize-delta panel-resize-start panel-resize-end find-open find-close`,

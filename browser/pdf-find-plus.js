@@ -12,7 +12,8 @@
  */
 
 // Executado DENTRO do frame do leitor (serializado com toString; precisa ser autocontido).
-function superprocPdfFindPlus() {
+// `recortar` = superprocRecortarContexto (find/recorte-contexto.js), passado junto no código injetado.
+function superprocPdfFindPlus(recortar) {
   if (window.__spPdfFindPlus) return 'ja-ativo';
   window.__spPdfFindPlus = true;
 
@@ -100,8 +101,9 @@ function superprocPdfFindPlus() {
         'mask-image:linear-gradient(to right,transparent 0,#000 22px)}',
       '.spGlossAfter{justify-content:flex-start;-webkit-mask-image:linear-gradient(to left,transparent 0,#000 22px);' +
         'mask-image:linear-gradient(to left,transparent 0,#000 22px)}',
-      '.spGlossMatch{flex:0 1 auto;max-width:70%;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0 2px;' +
-        'background:rgba(255,200,0,.35);border-radius:2px}',
+      '.spGlossMatch{flex:0 1 auto;max-width:70%;overflow:hidden;text-overflow:ellipsis;font-weight:600;padding:0;' +
+        // caixa por box-shadow (fora do fluxo): não afasta o texto vizinho
+        'background:rgba(255,200,0,.35);border-radius:2px;box-shadow:0 0 0 1px rgba(255,200,0,.55)}',
       '#spGlossEmpty{padding:8px 12px;font-size:12px;opacity:.7;font-style:italic}'
     ].join('\n');
     document.head.appendChild(style);
@@ -199,18 +201,22 @@ function superprocPdfFindPlus() {
       return promise;
     }
 
-    // Trecho [from, to) do texto corrido, com um espaço em cada quebra de linha.
-    function slice(page, from, to) {
+    // Trecho [from, to) do texto corrido, com `sep` em cada quebra de linha. As quebras exatamente nas bordas
+    // entram só quando pedidas: no trecho anterior, a quebra logo antes da ocorrência (incluirFim); no
+    // posterior, a quebra logo depois dela (incluirInicio). Assim o recorte sabe se a ocorrência abre ou fecha linha.
+    function slice(page, from, to, sep = ' ', incluirInicio = false, incluirFim = false) {
       const { text, eols } = page;
       from = Math.max(0, from);
       to = Math.min(text.length, to);
       let out = '';
       let cursor = from;
-      // primeira quebra com posição > from (uma quebra em `from` fica antes do primeiro caractere)
       let lo = 0, hi = eols.length;
-      while (lo < hi) { const mid = (lo + hi) >> 1; if (eols[mid] <= from) lo = mid + 1; else hi = mid; }
-      for (let i = lo; i < eols.length && eols[i] < to; i++) {
-        out += text.slice(cursor, eols[i]) + ' ';
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (incluirInicio ? eols[mid] < from : eols[mid] <= from) lo = mid + 1; else hi = mid;
+      }
+      for (let i = lo; i < eols.length && (incluirFim ? eols[i] <= to : eols[i] < to); i++) {
+        out += text.slice(cursor, eols[i]) + sep;
         cursor = eols[i];
       }
       return out + text.slice(cursor, to);
@@ -254,12 +260,17 @@ function superprocPdfFindPlus() {
       const position = (fc.pageMatches[loc.page] || [])[loc.index];
       pageText(loc.page).then((page) => {
         if (token !== generation || !row.isConnected || !page) return;
-        const flat = (value) => value.replace(/\s+/g, ' ');
         const from = position;
         const to = position + length;
-        row.querySelector('.spGlossBefore span').textContent = flat(slice(page, from - CTX * 2, from)).slice(-CTX);
-        row.querySelector('.spGlossMatch').textContent = flat(slice(page, from, to));
-        row.querySelector('.spGlossAfter span').textContent = flat(slice(page, to, to + CTX * 2)).slice(0, CTX);
+        // Mesma regra de recorte por frase da busca da shell (recorte-contexto.js).
+        const trecho = recortar(
+          slice(page, from - CTX * 2, from, '\n', false, true),
+          slice(page, from, to),
+          slice(page, to, to + CTX * 2, '\n', true, false),
+          CTX);
+        row.querySelector('.spGlossBefore span').textContent = trecho.before;
+        row.querySelector('.spGlossMatch').textContent = trecho.match;
+        row.querySelector('.spGlossAfter span').textContent = trecho.after;
       });
     }
 
@@ -376,7 +387,8 @@ function superprocPdfFindPlus() {
   return 'instalando';
 }
 
-const VIEWER_SOURCE = '(' + superprocPdfFindPlus.toString() + ')()';
+const { RECORTE_SOURCE } = require('./find/recorte-contexto');
+const VIEWER_SOURCE = '(' + superprocPdfFindPlus.toString() + ')((' + RECORTE_SOURCE + '))';
 
 /**
  * Registra a injeção em todo webContents (aba, painel) cujo frame seja o leitor de PDF.

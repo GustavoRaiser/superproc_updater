@@ -2,7 +2,8 @@
 // Coluna fixa do Copilot (modo "Integrada com Copilot"). Uma WebContentsView dentro da janela principal,
 // fora da lista de abas, mostrando só https://copilot.cloud.microsoft/. Só F5 (e Ctrl+R) é comando
 // do navegador; os demais atalhos do host são rejeitados. Teclas de digitação e edição (copiar, colar,
-// desfazer...) continuam funcionando, senão não seria possível usar o chat.
+// desfazer...) continuam funcionando, senão não seria possível usar o chat. Exceção: os atalhos do Acesso
+// Rápido (quick-access-shortcuts.js) também valem com o foco aqui; o bloqueio abaixo não os impede.
 // Dependências injetadas para testar sem Electron.
 
 const URL_COPILOT = 'https://copilot.cloud.microsoft/';

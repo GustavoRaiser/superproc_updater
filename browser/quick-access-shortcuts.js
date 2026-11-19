@@ -1,13 +1,12 @@
 'use strict';
 /**
  * SuperPROC - Atalhos do Acesso Rápido no host.
- * Escuta as teclas de todas as páginas da janela principal (abas, painel lateral, barra superior)
+ * Escuta as teclas de todas as páginas da janela principal (abas, painel lateral, barra superior, coluna do Copilot)
  * ANTES de a página recebê-las. Um atalho que combina com um único link abre o painel direto;
  * combinando com 2 ou mais, abre uma janela de escolha centralizada no mouse.
  */
 const path = require('path');
 const core = require('./quick-shortcut-core');
-const { ehColunaCopilot } = require('./copilot-column');
 
 const ESPERA_FECHAR_MS = 1000;
 
@@ -99,7 +98,9 @@ function create({ app, BrowserWindow, screen, webContents, ipcMain, getMainWindo
   /** Retorna true se a tecla foi tratada (e já bloqueada para a página). */
   function tratarTecla(event, input, wc) {
     if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return false;
-    if (ehColunaCopilot(wc)) return false; // a coluna do Copilot só aceita F5
+    // A coluna do Copilot também recebe os atalhos do Acesso Rápido (o foco pode estar na conversa).
+    // Ela continua bloqueando os demais comandos do navegador em copilot-column.js; os atalhos exigem
+    // modificador (quick-shortcut-core), então não roubam a digitação do chat.
     if (ignorarTecla && ignorarTecla(input)) return false; // combinação reservada a outra função (ex.: colar PDF no Copilot)
     const principal = getMainWindow();
     if (!principal || principal.isDestroyed()) return false;

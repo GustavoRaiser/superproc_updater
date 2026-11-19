@@ -316,20 +316,24 @@ export default {
             return data.getFullYear() === Number(match[3]) && data.getMonth() === Number(match[2]) - 1 && data.getDate() === Number(match[1]) ? data : null;
         }
 
+        // Datas aceitas: dd/mm/aaaa, dd.mm.aaaa, dd-mm-aaaa, "dd mm aaaa" ou ddmmaaaa (mesmo separador nos dois pontos).
+        // Data válida é exibida sempre como dd/mm/aaaa; o resto fica como digitado.
         function formatarLimitePeriodo(valor) {
             const texto = String(valor || '').trim();
-            if (!/^\d{8}$/.test(texto)) return texto;
-            const data = `${texto.slice(0, 2)}/${texto.slice(2, 4)}/${texto.slice(4)}`;
+            const match = texto.match(/^(\d{2})([./\- ]?)(\d{2})\2(\d{4})$/);
+            if (!match) return texto;
+            const data = `${match[1]}/${match[3]}/${match[4]}`;
             return parseDataBrasileira(data) ? data : texto;
         }
 
+        // Evento: só dígitos e menos dígitos que uma data (até 7). Oito dígitos sem data válida é erro.
         function parseLimitePeriodo(valor) {
             const texto = formatarLimitePeriodo(valor);
             const data = parseDataBrasileira(texto);
             if (data) return { tipo: 'data', valor: data };
-            if (!/^\d+$/.test(texto)) return null;
+            if (!/^\d{1,7}$/.test(texto)) return null;
             const numero = Number(texto);
-            return Number.isSafeInteger(numero) && numero > 0 ? { tipo: 'evento', valor: numero } : null;
+            return numero > 0 ? { tipo: 'evento', valor: numero } : null;
         }
 
         function validarIntervaloPeriodo(valorInicial, valorFinal) {
@@ -343,19 +347,42 @@ export default {
             return { tipo: (inicio || fim)?.tipo || null, inicio: inicio?.valor ?? null, fim: fim?.valor ?? null };
         }
 
-        function marcarPorTermoEPeriodo(termo, dataInicial, dataFinal) {
+        // Normaliza a data para dd/mm/aaaa assim que ela fica completa, preservando o cursor.
+        function ligarFormatacaoLimite(input) {
+            const aplicar = () => {
+                const anterior = input.value;
+                const formatado = formatarLimitePeriodo(anterior);
+                if (formatado === anterior) return;
+                const posicao = input.selectionStart;
+                input.value = formatado;
+                if (posicao === null || posicao === undefined) return;
+                const novaPosicao = /^\d{8}$/.test(anterior.trim())
+                    ? posicao + (posicao >= 2 ? 1 : 0) + (posicao >= 4 ? 1 : 0)
+                    : Math.min(posicao, formatado.length);
+                input.setSelectionRange(novaPosicao, novaPosicao);
+            };
+            input.addEventListener('input', aplicar);
+            input.addEventListener('blur', aplicar);
+        }
+
+        // intervalo = retorno de validarIntervaloPeriodo (tipo 'data', 'evento' ou null).
+        function marcarPorTermoEPeriodo(termo, intervalo = {}) {
             const termoNormalizado = normalizarTexto(termo).trim();
             if (!termoNormalizado) return 0;
+            const { tipo = null, inicio = null, fim = null } = intervalo || {};
+            const filtrar = tipo !== null && (inicio !== null || fim !== null);
             let marcados = 0;
             document.querySelectorAll("#divArvore li[role='none']").forEach((li) => {
                 const span = li.querySelector("span") || li.querySelector("a.jstree-anchor");
                 const checkbox = li.querySelector("i.jstree-checkbox");
                 if (!span || !checkbox || li.getAttribute("evento") === "true") return;
 
-                const dataDocumento = (dataInicial || dataFinal) ? extrairDataDoEvento(li) : null;
-                if ((dataInicial || dataFinal) && !dataDocumento) return;
-                if (dataInicial && dataDocumento < dataInicial) return;
-                if (dataFinal && dataDocumento > dataFinal) return;
+                if (filtrar) {
+                    const referencia = tipo === 'data' ? extrairDataDoEvento(li) : extrairNumeroDoEvento(li);
+                    if (referencia === null) return;
+                    if (inicio !== null && referencia < inicio) return;
+                    if (fim !== null && referencia > fim) return;
+                }
                 if (normalizarTexto(span.textContent).includes(termoNormalizado) && !li.classList.contains("jstree-checked")) {
                     checkbox.click();
                     marcados++;
@@ -379,10 +406,10 @@ export default {
                         <input id="automarca-termo-personalizado" type="text" autocomplete="off" placeholder="Ex.: petição" style="min-width:0;flex:1;height:27px;padding:4px 7px;border:2px solid #f0a000;border-radius:5px;font-size:12px;box-sizing:border-box;outline:none;">
                     </div>
                     <div style="display:flex;align-items:center;gap:5px;">
-                        <label for="automarca-data-inicial" style="font-size:11px;font-weight:700;white-space:nowrap;">Datas:</label>
-                        <input id="automarca-data-inicial" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" style="width:80px;min-width:0;height:27px;padding:4px 5px;border:1px solid #b9c5cf;border-radius:5px;font-size:11px;box-sizing:border-box;">
+                        <label for="automarca-data-inicial" title="Data (dd/mm/aaaa, dd.mm.aaaa, dd-mm-aaaa ou ddmmaaaa) ou número do evento" style="font-size:11px;font-weight:700;white-space:nowrap;">Período:</label>
+                        <input id="automarca-data-inicial" type="text" inputmode="numeric" maxlength="10" placeholder="data/evento" title="Data ou número do evento inicial" style="width:80px;min-width:0;height:27px;padding:4px 5px;border:1px solid #b9c5cf;border-radius:5px;font-size:11px;box-sizing:border-box;">
                         <span style="font-size:11px;color:#667788;">a</span>
-                        <input id="automarca-data-final" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa" style="width:80px;min-width:0;height:27px;padding:4px 5px;border:1px solid #b9c5cf;border-radius:5px;font-size:11px;box-sizing:border-box;">
+                        <input id="automarca-data-final" type="text" inputmode="numeric" maxlength="10" placeholder="data/evento" title="Data ou número do evento final" style="width:80px;min-width:0;height:27px;padding:4px 5px;border:1px solid #b9c5cf;border-radius:5px;font-size:11px;box-sizing:border-box;">
                         <button type="submit" style="height:27px;padding:0 9px;border:0;background:#0874a5;color:#fff;border-radius:5px;cursor:pointer;font-weight:700;font-size:11px;">MARCAR</button>
                     </div>
                     <div id="automarca-personalizada-erro" style="display:none;color:#ba2020;font-size:10px;line-height:1.2;"></div>
@@ -393,6 +420,7 @@ export default {
             const inicio = painel.querySelector('#automarca-data-inicial');
             const fim = painel.querySelector('#automarca-data-final');
             const erro = painel.querySelector('#automarca-personalizada-erro');
+            [inicio, fim].forEach(ligarFormatacaoLimite);
             let timerFechamento = null;
             let timerAbertura = null;
             // Mesmo atraso do menu de datas pré-definidas: passagens rápidas do mouse não abrem o painel.
@@ -455,13 +483,12 @@ export default {
             formulario.onsubmit = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                const dataInicial = inicio.value.trim() ? parseDataBrasileira(inicio.value) : null;
-                const dataFinal = fim.value.trim() ? parseDataBrasileira(fim.value) : null;
-                const mensagem = !termo.value.trim() ? 'Informe um termo para marcar.'
-                    : (inicio.value.trim() && !dataInicial) || (fim.value.trim() && !dataFinal) ? 'Use datas válidas no formato dd/mm/aaaa.'
-                    : dataInicial && dataFinal && dataInicial > dataFinal ? 'A data inicial não pode ser posterior à data final.' : '';
+                [inicio, fim].forEach(campo => { campo.value = formatarLimitePeriodo(campo.value); });
+                const intervalo = validarIntervaloPeriodo(inicio.value, fim.value);
+                const mensagem = !termo.value.trim() ? 'Informe um termo para marcar.' : (intervalo.erro || '');
                 if (mensagem) { erro.textContent = mensagem; erro.style.display = 'block'; return; }
-                const total = marcarPorTermoEPeriodo(termo.value, dataInicial, dataFinal);
+                erro.style.display = 'none';
+                const total = marcarPorTermoEPeriodo(termo.value, intervalo);
                 esconder();
                 feedbackVisual(total);
             };
@@ -709,21 +736,8 @@ export default {
                 const painel = document.createElement('form');
                 painel.id = 'automarca-periodo-personalizado';
                 painel.style.cssText = 'position:fixed;z-index:999999999;background:#fff;color:#334155;padding:10px;border:1px solid #b9c5cf;border-radius:6px;box-shadow:0 4px 15px #0004;font:12px Arial;max-width:calc(100vw - 20px);box-sizing:border-box';
-                painel.innerHTML = '<div style="font-weight:bold;margin-bottom:8px">Informar período</div><div style="display:flex;align-items:center;gap:5px"><input name="inicio" aria-label="Data ou evento inicial" placeholder="Data ou evento" inputmode="numeric" maxlength="10" style="width:100px"><span>a</span><input name="fim" aria-label="Data ou evento final" placeholder="Data ou evento" inputmode="numeric" maxlength="10" style="width:100px"></div><div style="margin-top:5px;font-size:11px">Datas: dd/mm/aaaa ou 8 dígitos. Eventos: só o número.<br>Limites opcionais: esquerda = a partir de; direita = até.</div><div style="margin-top:8px"><button type="submit">MARCAR</button> <button type="button">Cancelar</button></div><div role="status" style="margin-top:5px;color:#ba2020"></div>';
-                [painel.elements.inicio, painel.elements.fim].forEach(input => {
-                    input.addEventListener('input', () => {
-                        const formatado = formatarLimitePeriodo(input.value);
-                        if (formatado !== input.value) {
-                            const posicao = input.selectionStart;
-                            const anterior = input.value;
-                            input.value = formatado;
-                            if (/^\d{8}$/.test(anterior) && posicao !== null) {
-                                const novaPosicao = posicao + (posicao >= 2 ? 1 : 0) + (posicao >= 4 ? 1 : 0);
-                                input.setSelectionRange(novaPosicao, novaPosicao);
-                            }
-                        }
-                    });
-                });
+                painel.innerHTML = '<div style="font-weight:bold;margin-bottom:8px">Informar período</div><div style="display:flex;align-items:center;gap:5px"><input name="inicio" aria-label="Data ou evento inicial" placeholder="Data ou evento" inputmode="numeric" maxlength="10" style="width:100px"><span>a</span><input name="fim" aria-label="Data ou evento final" placeholder="Data ou evento" inputmode="numeric" maxlength="10" style="width:100px"></div><div style="margin-top:5px;font-size:11px">Datas: dd/mm/aaaa, dd.mm.aaaa, dd-mm-aaaa ou 8 dígitos. Eventos: só o número.<br>Limites opcionais: esquerda = a partir de; direita = até.</div><div style="margin-top:8px"><button type="submit">MARCAR</button> <button type="button">Cancelar</button></div><div role="status" style="margin-top:5px;color:#ba2020"></div>';
+                [painel.elements.inicio, painel.elements.fim].forEach(ligarFormatacaoLimite);
                 document.body.appendChild(painel);
                 const rect = btnIcone.getBoundingClientRect();
                 painel.style.left = `${Math.max(10, Math.min(rect.left, window.innerWidth - painel.offsetWidth - 10))}px`;

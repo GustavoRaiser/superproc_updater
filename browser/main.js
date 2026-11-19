@@ -498,6 +498,9 @@ let hoverSubWin = null; // submenu (à esquerda) dos grupos do menu hover
 let hoverKeyboardMode = false;
 let hoverTriggerId = null;
 const PANEL_EDGE_WIDTH = 6; // largura da faixa de arrasto na borda esquerda do painel lateral
+let hoverArraste = null; // true durante um arraste no menu hover (ver "ARRASTE NO MENU HOVER")
+let ultimoPedidoHover = null; // último pedido de abertura do menu hover (para redesenhar após soltar)
+let ultimoSubHover = null; // último submenu de grupo aberto
 let hoverShowSeq = 0; // numera cada abertura do menu hover: continuações assíncronas de aberturas antigas são descartadas
 
 function popupMenuState(triggerId, open) {
@@ -522,6 +525,7 @@ function focusToolbarFromContent(event, input) {
 
 function closeHoverAfterBlur() {
   setTimeout(() => {
+    if (hoverArraste) return; // arrastando um item do menu: só fecha ao soltar
     if ([hoverMenuWin,hoverSubWin].some(w => w && !w.isDestroyed() && w.isVisible() && w.isFocused())) return;
     hideHoverMenu();
   },0);
@@ -5912,8 +5916,14 @@ function setupIPC() {
   }
 
   // --- HOVER MENU IPC ---
-  hostIPC.on('show-hover-menu', (event, { category, x, y, right, stackId, keyboard = false, triggerId }) => {
+  // Durante um arraste no menu, passar por outro botão da barra não troca o menu.
+  hostIPC.on('show-hover-menu', (event, pedido) => { if (!hoverArraste) mostrarHoverMenu(pedido); });
+  // forcar: redesenha mesmo com o menu já aberto no lugar (após arrastar e soltar).
+  // grupoAbertoId: grupo cujo submenu continua aberto (a linha dele segue destacada).
+  function mostrarHoverMenu(pedido, { forcar = false, grupoAbertoId = null } = {}) {
+    const { category, x, y, right, stackId, keyboard = false, triggerId } = pedido || {};
     if (!mainWindow) return;
+    ultimoPedidoHover = pedido;
     if (hoverMenuTimeout) {
       clearTimeout(hoverMenuTimeout);
       hoverMenuTimeout = null;
@@ -5978,7 +5988,7 @@ function setupIPC() {
     const currentBounds = win.getBounds();
     const posChanged = Math.abs(currentBounds.x - posX) > 2 || Math.abs(currentBounds.y - posY) > 2;
 
-    if (isAlreadyVisible && !posChanged && !keyboard) {
+    if (isAlreadyVisible && !posChanged && !keyboard && !forcar) {
       return;
     }
 
@@ -6012,7 +6022,7 @@ function setupIPC() {
     const sendData = async () => {
       if (minhaAbertura !== hoverShowSeq) return; // outra abertura (outro menu) já assumiu a janela
       if (!win.isDestroyed()) {
-        win.webContents.send('render-hover-menu', { category, items, esquerda: colunaEsquerda, keyboard: hoverKeyboardMode });
+        win.webContents.send('render-hover-menu', { category, items, esquerda: colunaEsquerda, keyboard: hoverKeyboardMode, grupoAbertoId });
         if (!colunaEsquerda && alinharPelaDireita && !larguraMedida) {
           // Primeira vez desta lista: mede o texto já desenhado, ajusta largura/posição e só então mostra.
           try {
@@ -6037,9 +6047,10 @@ function setupIPC() {
     } else {
       sendData();
     }
-  });
+  }
 
   hostIPC.on('hide-hover-menu', (event, immediate) => {
+    if (hoverArraste) return; // arrastando: o menu fica aberto até soltar
     if (immediate && typeof immediate === 'object' && immediate.keyboard === true) {
       hideHoverMenu(immediate.restoreFocus === true); return;
     }
@@ -6058,12 +6069,15 @@ function setupIPC() {
   });
 
   // Submenu de grupo: abre à ESQUERDA do menu, alinhado à linha do grupo, sem sair da área útil da tela.
-  hostIPC.on('hover-sub-open', (event, { category, groupId, top, keyboard = false }) => {
+  hostIPC.on('hover-sub-open', (event, pedido) => abrirHoverSub(pedido));
+  function abrirHoverSub(pedido) {
+    const { category, groupId, top, keyboard = false } = pedido || {};
     if (!hoverMenuWin || hoverMenuWin.isDestroyed() || !hoverMenuWin.isVisible()) return;
     const lista = configManager.loadConfig()[category] || [];
     const grupo = lista.find(i => i && i.tipo === 'grupo' && i.id === groupId);
     const itens = ((grupo && grupo.itens) || []).filter(x => x && x.url).map(x => ({ id: x.id, nome: x.nome, url: x.url }));
     if (!itens.length) return;
+    ultimoSubHover = { category, groupId, top, keyboard: false };
     const hb = hoverMenuWin.getBounds();
     const area = screen.getDisplayMatching(hb).workArea;
     const largura = 230;
@@ -6078,12 +6092,47 @@ function setupIPC() {
     sub.setBounds({ x: Math.round(x), y: Math.round(y), width: largura, height: Math.round(altura) });
     const enviar = () => {
       if (sub.isDestroyed()) return;
-      sub.webContents.send('render-hover-menu', { category, items: itens, keyboard: keyboard === true });
+      sub.webContents.send('render-hover-menu', { category, items: itens, keyboard: keyboard === true, groupId });
       if (keyboard) { sub.show(); sub.focus(); }
       else sub.showInactive();
     };
     sub.webContents.removeAllListeners('did-finish-load');
     if (sub.webContents.isLoading()) sub.webContents.once('did-finish-load', enviar); else enviar();
+  }
+
+  // --- ARRASTE NO MENU HOVER (Acesso Rápido) ---
+  // Regras de mover em hover-menu/arraste-acesso-rapido.js; repasse entre menu e submenu, conferência da posição
+  // final e gravação em hover-menu/coordenador-arraste.js. Depois de gravar, menu e submenu são redesenhados.
+  const arrasteHover = require('./hover-menu/coordenador-arraste').criarCoordenadorArraste({
+    janelas: () => [{ win: hoverMenuWin, lado: 'menu' }, { win: hoverSubWin, lado: 'sub' }],
+    grupoDoSub: () => (ultimoSubHover ? ultimoSubHover.groupId : null),
+    lerLista: (categoria) => configManager.loadConfig()[categoria],
+    gravar: (categoria, lista) => {
+      const updated = configManager.saveAllCategories({ [categoria]: lista });
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('config-updated', updated);
+    }
+  });
+  hostIPC.on('hover-drag-start', (_event, d) => {
+    const pedido = d && typeof d === 'object' ? { ...d, category: configManager.normalizeCategory(d.category) } : d;
+    if (!arrasteHover.inicio(pedido)) return;
+    hoverArraste = true;
+    if (hoverMenuTimeout) { clearTimeout(hoverMenuTimeout); hoverMenuTimeout = null; }
+  });
+  hostIPC.on('hover-drag-move', (_event, p) => arrasteHover.mover(p));
+  hostIPC.on('hover-drag-target', (event, resposta) => arrasteHover.destino(event.sender, resposta));
+  hostIPC.on('hover-drag-end', async (_event, d) => {
+    let nova = null;
+    try { nova = await arrasteHover.fim(d); } catch (_) { nova = null; }
+    hoverArraste = null;
+    if (nova) {
+      const sub = hoverSubWin && !hoverSubWin.isDestroyed() && hoverSubWin.isVisible() ? ultimoSubHover : null;
+      if (hoverMenuWin && !hoverMenuWin.isDestroyed() && hoverMenuWin.isVisible() && ultimoPedidoHover) {
+        mostrarHoverMenu(ultimoPedidoHover, { forcar: true, grupoAbertoId: sub ? sub.groupId : null });
+        if (sub) { hideHoverSub(); abrirHoverSub(sub); }
+      }
+      return;
+    }
+    if (!cursorOverHoverWindows()) hideHoverMenu();
   });
 
   hostIPC.on('hover-sub-close', (_event, keyboard) => {

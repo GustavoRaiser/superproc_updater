@@ -232,7 +232,8 @@ html, body {
 
 .gloss-entry.is-active {
   background: rgba(56, 189, 248, 0.18);
-  border-left: 2px solid #38bdf8;
+  /* Faixa lateral sem borda real: não desloca o texto da linha ativa. */
+  box-shadow: inset 2px 0 0 #38bdf8;
 }
 
 .gloss-entry:last-child {
@@ -293,7 +294,11 @@ html, body {
   color: #ffffff;
   font-weight: 600;
   background: rgba(56, 189, 248, 0.18);
-  padding: 1px 2px;
+  /* Sem padding: a caixa é desenhada por box-shadow (fora do fluxo) e não afasta o texto vizinho,
+     p.ex. "Art. 285" buscando "85". */
+  padding: 0;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45);
 }
 .gloss-entry-text .ctx-after  { color: #64748b; }
 
@@ -365,6 +370,7 @@ html, body {
 .find-container.is-panel .gloss-entry-text .ctx-match {
   color: #ffffff;
   background: rgba(0, 207, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(0, 207, 255, 0.5);
 }
 
 .find-container.is-panel .gloss-entry:hover {
@@ -373,5 +379,5 @@ html, body {
 
 .find-container.is-panel .gloss-entry.is-active {
   background: rgba(0, 207, 255, 0.25);
-  border-left: 2px solid #00cfff;
+  box-shadow: inset 2px 0 0 #00cfff;
 }

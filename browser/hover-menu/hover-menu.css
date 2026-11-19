@@ -165,3 +165,12 @@ body {
   font-size: 14px;
   color: var(--text-muted);
 }
+
+/* ── Arrastar e soltar (Acesso Rápido) ── */
+body.arrastando, body.arrastando .menu-item { cursor: grabbing; }
+.menu-item.origem-arraste { opacity: .45; }
+/* Linha de inserção antes/depois; "dentro" destaca o grupo inteiro. Sombras não mudam o tamanho da linha. */
+.menu-item.drop-antes { box-shadow: inset 0 2px 0 var(--accent-drop, #38bdf8); }
+.menu-item.drop-depois { box-shadow: inset 0 -2px 0 var(--accent-drop, #38bdf8); }
+.menu-item.drop-dentro { background-color: rgba(56, 189, 248, .22); box-shadow: inset 0 0 0 1px var(--accent-drop, #38bdf8); color: #fff; }
+.drop-fim > .menu-item:last-of-type, .menu-items-list.drop-fim > .menu-item:last-of-type { box-shadow: inset 0 -2px 0 var(--accent-drop, #38bdf8); }
