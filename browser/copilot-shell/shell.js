@@ -36,8 +36,15 @@
 
   const mostrar = (r) => { $('resultado').textContent = r && r.ok ? '' : 'Erro: ' + (r && r.erro ? r.erro.codigo : 'DESCONHECIDO'); };
 
+  async function listarAbas() {
+    const politica = await window.superprocShell.consumidor({ tipo: 'politica-contexto' });
+    if (!politica?.ok) return politica;
+    if (!politica.permitido) return { ok: false, erro: { codigo: 'CONTEXTO_DESATIVADO' } };
+    return window.superprocShell.consumidor({ tipo: 'listar' });
+  }
+
   $('listar').addEventListener('click', async () => {
-    const r = await window.superprocShell.consumidor({ tipo: 'listar' });
+    const r = await listarAbas();
     mostrar(r);
     const ul = $('abas'); ul.replaceChildren();
     if (!r || !r.ok) return;
@@ -58,10 +65,13 @@
   });
 
   $('graph-listar').addEventListener('click', async () => {
-    const r = await window.superprocShell.consumidor({ tipo: 'listar' });
+    const r = await listarAbas();
     $('graph-estado').textContent = r?.ok ? '' : 'Não foi possível listar as abas: ' + (r?.erro?.codigo || 'ERRO');
-    const sel = $('graph-aba'); sel.replaceChildren(new Option('Sem contexto de aba', ''));
+    const sel = $('graph-aba');
+    const anterior = sel.value;
+    sel.replaceChildren(new Option('Sem contexto de aba', ''), new Option('Aba ativa ao enviar', 'ativa'));
     if (r?.ok) for (const aba of r.abas) if (aba.legivel) sel.appendChild(new Option(aba.titulo || aba.origem || 'Aba', aba.id));
+    if (Array.from(sel.options).some(opcao => opcao.value === anterior)) sel.value = anterior;
   });
   $('graph-reconectar').addEventListener('click', async () => {
     const btn = $('graph-reconectar'); btn.disabled = true; $('graph-estado').textContent = 'Conclua a entrada no navegador.';
@@ -72,8 +82,16 @@
     const btn = $('graph-enviar'); btn.disabled = true; $('graph-estado').textContent = 'Enviando…';
     const pergunta = $('graph-pergunta').value;
     try {
-      const r = await window.superprocShell.consumidor({ tipo: 'enviar', texto: pergunta, tabId: $('graph-aba').value || undefined });
-      if (!r?.ok) { const codigo = r?.erro?.codigo || 'ERRO'; $('graph-estado').textContent = GRAPH_ERROS[codigo] || ('Não foi possível enviar: ' + codigo); return; }
+      const aba = $('graph-aba').value;
+      const contexto = aba === 'ativa' ? { contextoAbaAtiva: true } : { tabId: aba || undefined };
+      const r = await window.superprocShell.consumidor({ tipo: 'enviar', texto: pergunta, ...contexto });
+      if (!r?.ok) {
+        const codigo = r?.erro?.codigo || 'ERRO';
+        $('graph-estado').textContent = codigo === 'SEM_ABA_ATIVA'
+          ? 'Abra a aba que deseja incluir e tente novamente.'
+          : GRAPH_ERROS[codigo] || ('Não foi possível enviar: ' + codigo);
+        return;
+      }
       $('graph-estado').textContent = ''; $('graph-resposta').textContent += ($('graph-resposta').textContent ? '\n\n' : '') + 'Você: ' + pergunta + '\n\nCopilot: ' + r.texto; if ($('graph-pergunta').value === pergunta) $('graph-pergunta').value = '';
       const metadados = { fontes: r.attributions, classificacao: r.sensitivityLabel };
       $('graph-fontes').hidden = !r.attributions?.length && !r.sensitivityLabel;

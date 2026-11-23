@@ -6,6 +6,7 @@ window.addEventListener('dblclick', (event) => {
 
 contextBridge.exposeInMainWorld('panelAPI', {
   togglePin: () => ipcRenderer.send('panel-toggle-pin'),
+  toggleCopilot: () => ipcRenderer.send('panel-toggle-copilot'),
   home: () => ipcRenderer.send('panel-home'),
   back: () => ipcRenderer.send('panel-back'),
   forward: () => ipcRenderer.send('panel-forward'),

@@ -246,11 +246,75 @@ export default {
             document.head.appendChild(style);
         }
 
+        function ehControleDeAtualizacao(controle) {
+            const href = controle.getAttribute('href')?.trim() || '';
+            if (href && !href.startsWith('#') && !/^javascript:/i.test(href)) return false;
+
+            const chamada = controle.getAttribute('onclick') || href.replace(/^javascript:/i, '');
+            const funcaoDeContagem = /^\s*(?:return\s+)?(?:window\.)?(?:contar?|atualizar?)(?:relat[oó]rios?|minutas?|(?:meus)?localizadores?|(?:listade)?processos)[\w$]*\s*\(/i;
+            if (funcaoDeContagem.test(chamada)) return true;
+
+            const rotuloDeContagem = /^(?:clique (?:aqui )?para )?(?:atualizar|recontar)(?:\s+(?:(?:a|as|o|os|todos|todas)\s+)*(?:contagem|contador|quantidade|total|relat[oó]rios?|minutas?|(?:meus\s+)?localizadores?|processos)\b|\s+(?:todos|todas)$|$)/i;
+            return [controle, ...controle.querySelectorAll('img')].some(el =>
+                ['title', 'aria-label', 'alt'].some(atributo =>
+                    rotuloDeContagem.test(el.getAttribute(atributo)?.trim() || '')
+                )
+            );
+        }
+
+        function obterControlesDeAtualizacao() {
+            const seletoresMestres = [
+                '#atualizaRelatoriosTodas',
+                '#atualizaMinutasTodas',
+                '#atualizaMeusLocalizadoresTodas',
+                '#atualizarListaDeProcessosPorLocalizadorTodas'
+            ];
+            const mestres = seletoresMestres.flatMap(seletor => Array.from(document.querySelectorAll(seletor)));
+            const controles = new Set(mestres);
+            const blocos = document.querySelectorAll('#divPainel fieldset, #blocoOcultosBody fieldset');
+
+            for (const bloco of blocos) {
+                const mestresDoBloco = mestres.filter(el => el.closest('fieldset') === bloco);
+                if (mestresDoBloco.some(el => !el.closest('table'))) continue;
+
+                const alternativas = new Set(Array.from(bloco.querySelectorAll(
+                    'a, button, input[type="button"], [role="button"], [onclick]'
+                )).filter(el => el.closest('fieldset') === bloco && ehControleDeAtualizacao(el)));
+                // O clique no ícone também chega ao link que o contém.
+                for (const el of alternativas) {
+                    for (let pai = el.parentElement; pai !== bloco; pai = pai.parentElement) {
+                        alternativas.delete(pai);
+                    }
+                }
+
+                const mestreDoBloco = [...alternativas].find(el => el.closest('legend'));
+                if (mestreDoBloco && mestresDoBloco.length === 0) {
+                    controles.add(mestreDoBloco);
+                    continue;
+                }
+
+                const mestrePorTabela = new Set(mestresDoBloco.map(el => el.closest('table')));
+                const porTabela = new Map();
+                for (const el of alternativas) {
+                    const tabela = el.closest('table');
+                    if (!tabela || mestrePorTabela.has(tabela)) continue;
+                    if (!porTabela.has(tabela)) porTabela.set(tabela, []);
+                    porTabela.get(tabela).push(el);
+                }
+                for (const [tabela, candidatos] of porTabela) {
+                    const mestre = candidatos.find(el =>
+                        el.closest('thead') ||
+                        (el.closest('tr') === tabela.rows[0] && el.closest('th:not([scope="row"])'))
+                    );
+                    if (mestre) controles.add(mestre);
+                    else candidatos.forEach(el => controles.add(el));
+                }
+            }
+
+            return [...controles];
+        }
+
         function acionarAtualizarTudo() {
-            // Não clique indiscriminadamente em todos os elementos cujo onclick
-            // contenha "conta". O eProc possui controles mestre e filho com
-            // essa palavra; dispará-los juntos multiplicava as mesmas chamadas
-            // AJAX e podia concorrer com telas de minuta abertas.
             const agora = Date.now();
             if (window.__superprocPainelAtualizacaoEmCurso || (agora - (window.__superprocPainelUltimaAtualizacao || 0)) < 5000) {
                 return;
@@ -258,22 +322,13 @@ export default {
             window.__superprocPainelAtualizacaoEmCurso = true;
             window.__superprocPainelUltimaAtualizacao = agora;
 
-            const seletoresMestres = [
-                '#atualizaRelatoriosTodas',
-                '#atualizaMinutasTodas',
-                '#atualizaMeusLocalizadoresTodas',
-                '#atualizarListaDeProcessosPorLocalizadorTodas'
-            ];
-            const vistos = new Set();
-            const botoesAtualizacao = seletoresMestres
-                .flatMap(seletor => Array.from(document.querySelectorAll(seletor)))
-                .filter(el => el && !vistos.has(el) && (vistos.add(el), true));
+            const botoesAtualizacao = obterControlesDeAtualizacao();
 
             botoesAtualizacao.forEach((el, indice) => {
-                // Cada controle mestre pode gerar suas próprias chamadas AJAX.
+                // Cada controle nativo pode gerar suas próprias chamadas AJAX.
                 // Espaçá-los evita uma rajada concorrente sobre a sessão PHP.
                 window.setTimeout(() => {
-                    try { el.click(); } catch (_) {}
+                    try { if (el.isConnected) el.click(); } catch (_) {}
                     if (indice === botoesAtualizacao.length - 1) {
                         window.setTimeout(() => { window.__superprocPainelAtualizacaoEmCurso = false; }, 900);
                     }
@@ -561,9 +616,13 @@ export default {
 
             if (!window.__eprocAtualizadoInicialmente) {
                 window.__eprocAtualizadoInicialmente = true;
-                setTimeout(() => {
-                    acionarAtualizarTudo();
-                }, 500);
+                // Dá aos demais listeners de load a chance de preparar os controles nativos.
+                const agendarAtualizacao = () => setTimeout(acionarAtualizarTudo, 0);
+                if (document.readyState === 'complete') {
+                    agendarAtualizacao();
+                } else {
+                    window.addEventListener('load', agendarAtualizacao, { once: true });
+                }
             }
 
             let timeout;

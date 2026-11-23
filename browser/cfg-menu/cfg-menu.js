@@ -24,6 +24,10 @@
   let modoAbertura = 'integrada';
   let colunaCopilot = false;
   let relacionadosPilha = true;
+  let copilotTextos = true; // chave "Copilot nos textos" (só tem efeito com a coluna do Copilot ligada)
+  const switchTextos = document.getElementById('switch-copilot-textos');
+  const rowTextos = document.getElementById('row-copilot-textos');
+  const descTextos = document.getElementById('desc-copilot-textos');
   const switchRelacionados = document.getElementById('switch-relacionados-pilha');
   let doisMonitoresDisponivel = false;
   const btnUpdate = document.getElementById('btn-update');
@@ -263,6 +267,11 @@
     });
     switchColuna.setAttribute('aria-checked', String(colunaCopilot));
     switchRelacionados.setAttribute('aria-checked', String(relacionadosPilha));
+    // Sem a coluna do Copilot a ferramenta não tem com quem falar: a chave fica apagada e desligada na tela (a escolha é mantida)
+    switchTextos.setAttribute('aria-checked', String(copilotTextos && colunaCopilot));
+    switchTextos.disabled = !colunaCopilot;
+    rowTextos.classList.toggle('desligado', !colunaCopilot);
+    descTextos.textContent = colunaCopilot ? 'Ícone do Copilot ao lado do cursor nos campos de texto.' : 'Indisponível: requer a Coluna Copilot ligada.';
     inputCopilot.disabled = !colunaCopilot;
     rowPctCopilot.classList.toggle('desligado', !colunaCopilot);
     // Em Dois monitores a árvore ocupa o outro monitor inteiro: o percentual da árvore não se aplica
@@ -286,6 +295,14 @@
     relacionadosPilha = !relacionadosPilha;
     renderModoAbertura();
     window.api.sendAction('set-relacionados-em-pilha', { ligado: relacionadosPilha });
+  });
+
+  switchTextos.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!colunaCopilot) return;
+    copilotTextos = !copilotTextos;
+    renderModoAbertura();
+    window.api.sendAction('set-copilot-textos', { ligado: copilotTextos });
   });
 
   switchColuna.addEventListener('click', (e) => {
@@ -636,6 +653,7 @@
       modoAbertura = ['simples', 'integrada', 'doisMonitores'].includes(data && data.modoAbertura) ? data.modoAbertura : 'integrada';
       colunaCopilot = !!(data && data.colunaCopilot);
       relacionadosPilha = !data || data.relacionadosEmPilha !== false;
+      copilotTextos = !data || data.copilotNosTextos !== false;
       for (const [nome, chave] of [['copilot', 'copilotColunaPct'], ['arvore', 'arvorePct']]) {
         const v = Number(data && data[chave]);
         if (Number.isFinite(v)) PCT[nome].atual = Math.min(PCT[nome].max, Math.max(PCT[nome].min, Math.round(v)));

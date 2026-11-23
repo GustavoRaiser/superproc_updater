@@ -6,7 +6,6 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting",
     "webRequest"
   ],
   "host_permissions": [
@@ -15,9 +14,7 @@
     "*://eproc2g.tjsc.jus.br/*",
     "*://eprocwebcon.tjsc.jus.br/*",
     "*://*.jus.br/*",
-    "*://www.planalto.gov.br/*",
-    "*://m365.cloud.microsoft/*",
-    "*://copilot.cloud.microsoft/*"
+    "*://www.planalto.gov.br/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",

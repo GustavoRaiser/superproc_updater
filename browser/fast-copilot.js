@@ -52,7 +52,7 @@ function criarFastCopilot({
   readPdf = require('./pdf-transfer').readPdf, stageFile = require('./pdf-transfer').stageFile, releaseFile = require('./pdf-transfer').releaseFile,
   pdfGate = require('./v2-policy').pdfGate,
   foco = { capturar: () => ({}), restaurar: () => {} }, esperaAnexoMs = 15000, motivoIcone = () => '',
-  lerWorker = () => fs.readFileSync(path.join(__dirname, '../extensao-superproc/modules/automacoes/copilot_worker.js'), 'utf8')
+  lerWorker = () => fs.readFileSync(path.join(__dirname, 'copilot-worker.js'), 'utf8')
 }) {
   let estado = 'ocioso'; // ocioso | caixa | enviando | aguardando | aplicando
   let pedidoAtual = null;

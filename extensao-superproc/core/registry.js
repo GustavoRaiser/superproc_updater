@@ -34,15 +34,6 @@ const MODULES_REGISTRY = [
         scriptPath: 'modules/outras/integracao_azflow.js',
         matches: (url, params) => url.pathname.includes('controlador.php') && params.get('acao') === 'processo_selecionar'
     },
-    {
-        id: 'automacoes_saneador',
-        name: 'Automações em lote',
-        category: CATEGORIAS.AUTOMACOES,
-        description: 'Fluxos configuráveis de documentos, Copilot e minuta. Inclui o Saneador como exemplo; gerencie suas automações abaixo.',
-        defaultEnabled: false,
-        scriptPath: 'modules/automacoes/saneador_lote.js',
-        matches: (url, params) => ['localizador_processos_lista', 'processo_selecionar'].includes(params.get('acao'))
-    },
     // ==========================================
     // AJUSTES GERAIS (UNIVERSAL)
     // ==========================================
@@ -294,7 +285,7 @@ const MODULES_REGISTRY = [
         id: 'editor_texto',
         name: 'Editor - Botão Texto (edição rápida)',
         category: CATEGORIAS.EDITOR,
-        description: 'Botão "Texto" na barra do editor, ao lado de PDF e IA, com formatação rápida, limpeza de parágrafos, caixa/tipografia e formatação de ementa na seleção. Com texto selecionado, um atalho (padrão Alt+Shift, configurável abaixo) abre o mesmo menu junto à seleção.',
+        description: 'Botão "Texto" na barra do editor, ao lado de PDF, com formatação rápida, limpeza de parágrafos, caixa/tipografia e formatação de ementa na seleção. Com texto selecionado, um atalho (padrão Alt+Shift, configurável abaixo) abre o mesmo menu junto à seleção.',
         defaultEnabled: false,
         atalho: { rotulo: 'Atalho para abrir o menu na seleção', acorde: true },
         scriptPath: 'modules/editor/editor_texto.js',

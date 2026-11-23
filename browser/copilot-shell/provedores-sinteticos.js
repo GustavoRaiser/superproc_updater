@@ -50,6 +50,7 @@ function criarConsumidorSintetico({ gerarCanal = () => require('node:crypto').ra
     },
     async desmontar() { ctx = null; canal = null; estado = 'desmontado'; },
     // Demonstrações: devolvem o resultado estruturado do browserContext.
+    consultarPolitica() { return ctx ? ctx.consultarPolitica({ canal }) : { ok: false, erro: { codigo: 'CONSUMIDOR_DESMONTADO', retentavel: false } }; },
     async listarAbas() { return ctx ? ctx.listarAbas({ canal }) : { ok: false, erro: { codigo: 'CONSUMIDOR_DESMONTADO', retentavel: false } }; },
     async lerAba(tabId, maxCaracteres) { return ctx ? ctx.lerAba({ canal, tabId, maxCaracteres }) : { ok: false, erro: { codigo: 'CONSUMIDOR_DESMONTADO', retentavel: false } }; },
     // Só para testes: devolve o canal vigente (nunca exposto por IPC).

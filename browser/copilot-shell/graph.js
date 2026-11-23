@@ -14,12 +14,16 @@ function criarGraph({ clientId, tenant, abrirBrowser, fetchImpl = globalThis.fet
   let conta = null, conversa = null, ocupado = false, entradaEmAndamento = false, geracao = 0;
   const account = {
     async obterEstado() { return { status: conta ? 'autenticada' : 'sem-sessao' }; },
-    async entrar() {
+    async entrar({ silencioso = false } = {}) {
       if (entradaEmAndamento) throw falha('LOGIN_EM_ANDAMENTO');
       entradaEmAndamento = true;
       const minhaGeracao = geracao;
       try {
-        const resultado = await pca.acquireTokenInteractive({ scopes: SCOPES, openBrowser: abrirBrowser });
+        const resultado = await pca.acquireTokenInteractive({
+          scopes: SCOPES,
+          openBrowser: abrirBrowser,
+          ...(silencioso ? { prompt: 'none' } : {})
+        });
         if (!resultado?.account || !resultado?.accessToken) throw falha('LOGIN_INCOMPLETO');
         if (minhaGeracao !== geracao) { await pca.getTokenCache().removeAccount(resultado.account); throw falha('LOGIN_CANCELADO'); }
         const anterior = conta;
@@ -27,7 +31,12 @@ function criarGraph({ clientId, tenant, abrirBrowser, fetchImpl = globalThis.fet
         conversa = null;
         if (anterior && anterior.homeAccountId !== conta.homeAccountId) await pca.getTokenCache().removeAccount(anterior);
         return { status: 'autenticada' };
-      } catch (e) { throw falha(e?.codigo || 'LOGIN_MICROSOFT_FALHOU'); }
+      } catch (e) {
+        if (silencioso && ['login_required', 'interaction_required', 'consent_required', 'account_selection_required'].includes(e?.errorCode)) {
+          throw falha('SESSAO_GRAPH_INDISPONIVEL');
+        }
+        throw falha(e?.codigo || 'LOGIN_MICROSOFT_FALHOU');
+      }
       finally { entradaEmAndamento = false; }
     }
   };
@@ -50,19 +59,31 @@ function criarGraph({ clientId, tenant, abrirBrowser, fetchImpl = globalThis.fet
     }
     try { return await response.json(); } catch (_) { throw falha('RESPOSTA_GRAPH_INVALIDA'); }
   }
+  async function obterConversa() {
+    if (!conversa) {
+      const minhaGeracao = geracao;
+      const r = await post(GRAPH, {});
+      if (minhaGeracao !== geracao) throw falha('LOGIN_CANCELADO');
+      if (typeof r?.id !== 'string' || !GUID.test(r.id)) throw falha('RESPOSTA_GRAPH_INVALIDA');
+      conversa = r.id;
+    }
+    return conversa;
+  }
+  async function criarConversa() {
+    if (ocupado) throw falha('PEDIDO_EM_ANDAMENTO');
+    ocupado = true;
+    try { return await obterConversa(); }
+    finally { ocupado = false; }
+  }
   async function enviar(texto, contexto) {
     if (ocupado) throw falha('PEDIDO_EM_ANDAMENTO');
     if (typeof texto !== 'string' || !texto.trim() || texto.length > 20000 || (contexto != null && (typeof contexto !== 'string' || contexto.length > 50000))) throw falha('PEDIDO_INVALIDO');
     ocupado = true;
     try {
-      if (!conversa) {
-        const r = await post(GRAPH, {});
-        if (typeof r.id !== 'string' || !GUID.test(r.id)) throw falha('RESPOSTA_GRAPH_INVALIDA');
-        conversa = r.id;
-      }
+      const id = await obterConversa();
       const corpo = { message: { text: texto }, locationHint: { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo' } };
       if (contexto) corpo.additionalContext = [{ text: contexto }];
-      const resposta = await post(`${GRAPH}/${conversa}/chat`, corpo);
+      const resposta = await post(`${GRAPH}/${id}/chat`, corpo);
       const mensagens = Array.isArray(resposta.messages) ? resposta.messages : [];
       const ultima = mensagens.filter(m => typeof m?.text === 'string').at(-1);
       if (!ultima) throw falha('RESPOSTA_GRAPH_INVALIDA');
@@ -70,6 +91,6 @@ function criarGraph({ clientId, tenant, abrirBrowser, fetchImpl = globalThis.fet
     } finally { ocupado = false; }
   }
   async function encerrar() { geracao++; const anterior = conta; conta = null; conversa = null; if (anterior) await pca.getTokenCache().removeAccount(anterior); }
-  return { account, eligibility, enviar, encerrar };
+  return { account, eligibility, criarConversa, enviar, encerrar };
 }
 module.exports = { criarGraph, SCOPES };

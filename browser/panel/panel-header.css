@@ -129,6 +129,11 @@ body {
   background-color: rgba(255, 255, 255, 0.15);
 }
 
+/* "Visível ao Copilot": desligado fica esmaecido; ligado ganha fundo. */
+#btn-panel-copilot { opacity: 0.45; }
+#btn-panel-copilot.ligado { opacity: 1; background-color: rgba(0, 162, 255, 0.28); color: #ffffff; }
+#btn-panel-copilot:disabled { opacity: 0.2; }
+
 .panel-nav-btn:disabled {
   opacity: 0.3;
   cursor: default;

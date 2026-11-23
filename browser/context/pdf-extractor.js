@@ -10,8 +10,12 @@ async function extrairPdf(o) {
   const paginas = [];
   let caracteres = 0;
   let truncado = false;
-  for (let i = 1; i <= doc.numPages; i++) {
-    if (Date.now() - inicio > o.timeoutMs) { truncado = true; break; }
+  // Faixa opcional (o.paginas = { de, ate }, 1-based, inclusiva); sem faixa, o documento inteiro.
+  const de = Math.max(1, (o.paginas && o.paginas.de) || 1);
+  const ate = Math.min(doc.numPages, (o.paginas && o.paginas.ate) || doc.numPages);
+  const prazo = o.timeoutPdfMs || o.timeoutMs;
+  for (let i = de; i <= ate; i++) {
+    if (Date.now() - inicio > prazo) { truncado = true; break; }
     const pagina = await doc.getPage(i);
     const conteudo = await pagina.getTextContent();
     let texto = conteudo.items.map((x) => (typeof x.str === 'string' ? x.str : '')).join(' ').replace(/\s+/g, ' ').trim();
@@ -21,7 +25,7 @@ async function extrairPdf(o) {
     if (truncado) break;
     if (window.PDFViewerApplication.pdfDocument !== doc) return { leitor: true, mudou: true };
   }
-  return { leitor: true, totalPaginas: doc.numPages, paginas, caracteres, truncado };
+  return { leitor: true, totalPaginas: doc.numPages, paginas, caracteres, truncado, faixa: { de, ate } };
 }
 
 const codigoPdf = (opcoes) => `(${extrairPdf.toString()})(${JSON.stringify(opcoes)})`;
@@ -29,13 +33,16 @@ const codigoPdf = (opcoes) => `(${extrairPdf.toString()})(${JSON.stringify(opcoe
 // Resultado padronizado para o broker (aplicado no processo principal).
 function normalizarPdf(bruto) {
   if (!bruto || bruto.leitor !== true || bruto.mudou) return null;
-  const textoDisponivel = bruto.caracteres > 0;
+  // Uma faixa pedida vazia (ex.: de > total) não é "sem camada de texto".
+  const faixaVazia = !!(bruto.faixa && bruto.faixa.de > bruto.faixa.ate);
+  const textoDisponivel = bruto.caracteres > 0 || faixaVazia;
   return {
     totalPaginas: bruto.totalPaginas,
     paginas: bruto.paginas,
     textoDisponivel,
     requerOcr: !textoDisponivel,
     truncado: !!bruto.truncado,
+    ...(bruto.faixa ? { faixa: bruto.faixa } : {}),
     avisos: textoDisponivel ? [] : ['PDF_HAS_NO_TEXT_LAYER']
   };
 }

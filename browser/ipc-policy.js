@@ -16,7 +16,7 @@ const LOCAL_CHANNELS = {
     copilot-coluna-get copilot-coluna-toggle copilot-coluna-clique`,
   dialog: `dialog-close dialog-get-data dialog-add-link config-update-link config-remove-link
     config-set-category-links config-save-all-categories config-move-link dialog-navigate-to
-    clear-cache clear-preferences clear-extensions extensions-status clear-all-data dialog-open config-set-corretor-ortografico config-get
+    clear-cache clear-preferences clear-extensions extensions-status clear-all-data dialog-open config-set-corretor-ortografico config-set-copilot-contexto config-set-copilot-ia-local config-set-copilot-texto-completo config-get-copilot-admin config-get-copilot-politicas-ia config-set-copilot-politica-ia config-set-copilot-politicas-ia-lote config-set-copilot-admin config-get
     get-download-config set-download-config select-download-folder`,
   cfg: 'cfg-action cfg-close cfg-layout',
   downloads: `downloads-get-recent downloads-open-file downloads-show-in-folder downloads-open-folder
@@ -25,17 +25,20 @@ const LOCAL_CHANNELS = {
   hover: `hover-menu-open-link hover-menu-open-add-dialog hover-menu-open-manage-dialog hover-sub-open
     hover-sub-close hide-hover-menu cancel-hover-hide hover-drag-start hover-drag-move hover-drag-target hover-drag-end`,
   find: 'find-search find-next find-stop find-close find-resize find-glossary-request find-glossary-jump',
-  panel: `panel-toggle-pin panel-home panel-back panel-forward panel-reload panel-promote-to-tab panel-close
+  panel: `panel-toggle-pin panel-toggle-copilot panel-home panel-back panel-forward panel-reload panel-promote-to-tab panel-close
     panel-hide panel-resize-delta panel-resize-start panel-resize-end find-open find-close`,
   empty: 'empty-action-home empty-action-localizadores empty-action-undo empty-action-close',
   spell: 'spell-get-lists spell-add-word spell-remove-word spell-import spell-export spell-manage-close',
   fastcopilot: 'fc-box-get fc-box-submit fc-box-cancel',
   copilotanfitriao: 'copilot-anfitriao-msg copilot-anfitriao-falha',
-  copilotshell: 'copilot-shell-estado copilot-shell-acao copilot-shell-consumidor'
+  copilotshell: 'copilot-shell-estado copilot-shell-acao copilot-shell-consumidor',
+  copilotconsent: 'copilot-consentimento-decisao'
 };
 const capabilities = new Map(Object.entries(LOCAL_CHANNELS).map(([role, channels]) => [role, new Set(channels.split(/\s+/))]));
 const PAGE_CHANNELS = new Set(['tab-open-process-url', 'tab-page-close-request', 'tab-refresh-parent-request',
-  'page-navbar-dimension', 'superproc:eproc-session', 'panel-content-toggle-pin', 'superproc:print-pdf', 'superproc:modulo-usuario', 'superproc:abrir-organizador']);
+  'page-navbar-dimension', 'superproc:eproc-session', 'panel-content-toggle-pin', 'superproc:print-pdf', 'superproc:modulo-usuario', 'superproc:abrir-organizador',
+  // Ponte do cr-host: só o quadro principal da coluna do Copilot numa origem do cr-host (conferido em allowPage).
+  'copilot-cr-abrir', 'copilot-cr-msg', 'copilot-cr-fechar', 'copilot-cr-unico', 'copilot-cr-nota']);
 
 function isLocalFrame(event, contents, file) {
   try {

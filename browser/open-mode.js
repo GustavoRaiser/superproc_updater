@@ -78,12 +78,10 @@ function displayOposto(displays, janela) {
 //   middleClick     clique da roda (aba autônoma em segundo plano)
 //   temPapelProcesso a URL de destino é capa/editor/árvore do eproc (getProcessRole != null)
 //   urlVazia        destino vazio ou about:blank (a página navega depois: o papel ainda é desconhecido)
-//   origemSaneador  pedido de uma aba do Saneador: sempre unificado, como hoje
 // Retorno: { destino: 'janela' | 'aba', unificar: boolean }
 //   janela: janela do sistema com barra nativa. aba: aba do host; unificar = entra no grupo do processo.
 function decidirAbertura(modo, pedido = {}) {
-  const { disposition, middleClick, temPapelProcesso, urlVazia, origemSaneador } = pedido;
-  if (origemSaneador) return { destino: 'aba', unificar: true };
+  const { disposition, middleClick, temPapelProcesso, urlVazia } = pedido;
   const emSegundoPlano = !!middleClick || disposition === 'background-tab';
   if (emSegundoPlano) return { destino: 'aba', unificar: false };
   const pedeJanela = disposition === 'new-window';

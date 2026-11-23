@@ -480,7 +480,7 @@
 
     /* ---------- botão na barra do CKEditor ---------- */
     function injetarBotao() {
-        const referencia = document.getElementById('az-btn-corrigir-copilot') || document.getElementById('az-btn-gerar-pdf-custom') || document.querySelector('.cke_button__imprimir');
+        const referencia = document.getElementById('az-btn-gerar-pdf-custom') || document.querySelector('.cke_button__imprimir');
         if (!referencia) return;
         let botao = document.getElementById(BTN_ID);
         if (!botao) {
@@ -504,7 +504,7 @@
     ligarAtalhoNosEditores();
     let timer;
     const observador = new MutationObserver((mutacoes) => {
-        if (!mutacoes.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && (n.matches?.('.cke,.cke_top,.cke_toolbox,#az-btn-gerar-pdf-custom,#az-btn-corrigir-copilot') || n.querySelector?.('.cke_button__imprimir,#az-btn-corrigir-copilot'))))) return;
+        if (!mutacoes.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && (n.matches?.('.cke,.cke_top,.cke_toolbox,#az-btn-gerar-pdf-custom') || n.querySelector?.('.cke_button__imprimir'))))) return;
         clearTimeout(timer); timer = setTimeout(() => { injetarBotao(); ligarAtalhoNosEditores(); }, 160);
     });
     observador.observe(document.documentElement, { childList: true, subtree: true });

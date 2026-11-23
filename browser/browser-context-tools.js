@@ -37,7 +37,10 @@ function descrever(alvo) {
   };
 }
 
-function criarFerramentas({ provedor, perguntar, origem = 'superproc://browser-context-tools', log = () => {} }) {
+// `admin` (opcional, objeto ou função que o devolve): AdminBroker. Suas ferramentas (prefixo superproc_) entram no catálogo e na
+// execução, com a política e as confirmações do próprio AdminBroker; sem ele, só a leitura de contexto (browser_*).
+function criarFerramentas({ provedor, perguntar, origem = 'superproc://browser-context-tools', log = () => {}, admin = null }) {
+  const getAdmin = () => { try { return typeof admin === 'function' ? admin() : admin; } catch (_) { return null; } };
   if (!provedor || typeof provedor.listarAbas !== 'function' || typeof provedor.abaAlvo !== 'function') throw Error('Provedor de contexto inválido');
   const registrar = (acao, resultado) => { try { log('BROWSER_CONTEXT_TOOL', acao + ': ' + resultado); } catch (_) {} };
   const consentir = async (alvo, finalidade) => {
@@ -91,7 +94,11 @@ function criarFerramentas({ provedor, perguntar, origem = 'superproc://browser-c
     if (alvo.tipo !== 'pdf' || typeof provedor.lerPdf !== 'function') return { ok: false, reason: 'not-supported' };
     if (!(await consentir(alvo, 'corpo'))) return { ok: false, reason: 'consent-required' };
     const maxChars = inteiroNoIntervalo(args.maxChars, MAX_CHARS_PADRAO, 1, MAX_CHARS_TETO);
-    const text = await provedor.lerPdf(alvo, { max: maxChars });
+    // Faixa opcional de páginas (1-based, inclusiva): pageFrom / pageTo.
+    const de = args.pageFrom == null ? null : args.pageFrom, ate = args.pageTo == null ? null : args.pageTo;
+    if ((de !== null && (!Number.isSafeInteger(de) || de < 1)) || (ate !== null && (!Number.isSafeInteger(ate) || ate < (de || 1)))) return { ok: false, reason: 'invalid-page-range' };
+    const paginas = de !== null || ate !== null ? { de: de || 1, ate: ate || Number.MAX_SAFE_INTEGER } : undefined;
+    const text = await provedor.lerPdf(alvo, { max: maxChars, paginas });
     if (typeof text !== 'string' || (provedor.alvoAtual && !provedor.alvoAtual(alvo))) return { ok: false, reason: 'content-unavailable' };
     const safeText = sanitizar(text).slice(0, maxChars);
     registrar('get_pdf_context', 'ok (' + safeText.length + ' chars)');
@@ -104,11 +111,18 @@ function criarFerramentas({ provedor, perguntar, origem = 'superproc://browser-c
       case NOMES.abaAtiva: return abaAtiva();
       case NOMES.contextoPagina: return contextoPagina(args);
       case NOMES.contextoPdf: return contextoPdf(args);
-      default: return { ok: false, reason: 'unknown-tool' };
+      default: {
+        const a = getAdmin();
+        if (a && typeof name === 'string' && name.startsWith('superproc_')) return a.chamar(name, args === undefined ? {} : args);
+        return { ok: false, reason: 'unknown-tool' };
+      }
     }
   }
 
-  return { listarAbas, abaAtiva, contextoPagina, contextoPdf, executar };
+  // Ferramentas de administração anunciadas (nome, descrição, JSON Schema, categoria e se estão ligadas pela política).
+  const catalogoAdmin = () => { const a = getAdmin(); return a ? a.catalogo() : []; };
+
+  return { listarAbas, abaAtiva, contextoPagina, contextoPdf, executar, catalogoAdmin };
 }
 
 module.exports = { NOMES, urlHttp, descrever, criarFerramentas };

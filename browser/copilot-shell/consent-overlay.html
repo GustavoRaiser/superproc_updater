@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>Consentimento do Copilot</title>
+  <link rel="stylesheet" href="consent-overlay.css">
+</head>
+<body>
+  <main class="cartao" role="alertdialog" aria-labelledby="titulo" aria-describedby="descricao">
+    <h1 id="titulo">O Copilot deseja usar o conteúdo no seu navegador</h1>
+    <p id="descricao">O Copilot pode dar respostas melhores com base na página atual e nas abas abertas no SuperPROC. O texto das abas é enviado ao serviço Copilot da Microsoft quando ele consulta uma aba.</p>
+    <p class="nota">Você pode mudar isso depois em CFG → Configurações.</p>
+    <div class="acoes">
+      <button type="button" id="negar">Não permitir</button>
+      <button type="button" id="permitir" class="principal">Permitir</button>
+    </div>
+  </main>
+  <script src="consent-overlay.js"></script>
+</body>
+</html>

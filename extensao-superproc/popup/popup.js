@@ -1,6 +1,5 @@
 import { Registry, CATEGORIAS, carregarModulosUsuario } from '../core/registry.js';
 import { Storage } from '../core/storage.js';
-import { renderAutomationManager } from './automations.js';
 import { renderAtalho } from './atalho.js';
 import { renderCompacto } from './compacto.js';
 import { renderFeito } from './feito.js';
@@ -87,7 +86,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         modulesListEl.innerHTML = '';
 
         if (filtered.length === 0) {
-            modulesListEl.innerHTML = '<div class="empty-state">Nenhuma funcionalidade encontrada.</div>';
+            modulesListEl.innerHTML = currentCategory === CATEGORIAS.AUTOMACOES && !currentSearchTerm
+                ? '<div class="empty-state">Nenhuma automação disponível. Automações com IA ficam no navegador SuperPROC.</div>'
+                : '<div class="empty-state">Nenhuma funcionalidade encontrada.</div>';
             return;
         }
 
@@ -163,10 +164,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             modulesListEl.appendChild(card);
         });
-        if (currentCategory === CATEGORIAS.AUTOMACOES) {
-            const manager = document.createElement('section'); manager.className = 'auto-manager'; modulesListEl.append(manager);
-            renderAutomationManager(manager).catch(error => { manager.textContent = error.message; });
-        }
     }
 
     // =========================================================================

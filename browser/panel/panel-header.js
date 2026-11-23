@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const btnCopilot = document.getElementById('btn-panel-copilot');
+  if (btnCopilot) btnCopilot.addEventListener('click', () => { if (api.toggleCopilot) api.toggleCopilot(); });
+
   if (btnPanelFindToggle) {
     btnPanelFindToggle.addEventListener('click', () => {
       if (api.openFind) api.openFind();
@@ -78,6 +81,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Atualização dos dados do painel
   api.onPanelData((data) => {
     if (!data) return;
+
+    if (btnCopilot) {
+      const ligado = data.copilotVisivel === true;
+      btnCopilot.disabled = data.copilotDisponivel !== true;
+      btnCopilot.classList.toggle('ligado', ligado);
+      btnCopilot.setAttribute('aria-pressed', String(ligado));
+      btnCopilot.title = data.copilotDisponivel !== true ? 'Este item não pode ser marcado (abra-o pelo menu de acesso rápido)'
+        : ligado ? 'Visível ao Copilot: ele sabe que esta página existe e a lê quando precisar. Clique para desligar.'
+          : 'Tornar visível ao Copilot: ele passa a saber que esta página existe e a lê quando precisar.';
+    }
 
     if (headerContainer) {
       if (data.isPinned) {

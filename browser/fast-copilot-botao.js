@@ -25,7 +25,7 @@ function noIsoladoBotao(cfg) {
     btn.addEventListener('mousedown', (e) => e.preventDefault()); // não tira a seleção do editor
     btn.addEventListener('click', (e) => { e.preventDefault(); window.postMessage({ type: 'superproc:fast-copilot-click' }, location.origin); });
     // depois do último botão próprio do SuperPROC (PDF, IA); senão, logo após o Imprimir
-    const ultimo = document.getElementById('az-btn-corrigir-copilot') || document.getElementById('az-btn-gerar-pdf-custom') || ref;
+    const ultimo = document.getElementById('az-btn-gerar-pdf-custom') || ref;
     ultimo.parentNode.insertBefore(btn, ultimo.nextSibling);
     pintar();
   }

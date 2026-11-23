@@ -38,7 +38,7 @@ function omittableDependencyFile(relative) {
 // Leis baixadas não vão no portátil (milhares de arquivos a descompactar): o aplicativo baixa cada norma, já limpa, quando ela é aberta.
 // Continuam indo o catálogo (um arquivo) e o padrao.json (ordem do Acesso Rápido padrão).
 // Também ficam de fora scripts sem uso (nenhum módulo os carrega) e o modelo de desenvolvimento de módulos.
-const EXCLUDED_APP_PATHS = new Set(['config/atualizacao.local.json', 'browser/legislacao/dados/biblioteca-inicial', 'extensao-superproc/modules/automacoes/saneador.js', 'extensao-superproc/modules/automacoes/eproc_bridge.js']);
+const EXCLUDED_APP_PATHS = new Set(['config/atualizacao.local.json', 'browser/legislacao/dados/biblioteca-inicial']);
 function omittableProductionFile(relative) { const name = relative.split('/').at(-1); return name.endsWith('.map') || name.endsWith('.d.ts') || EXCLUDED_APP_PATHS.has(relative); }
 function walk(root, relative, entries, shouldOmit = () => false) {
   const absolute = assertInside(root, path.join(root, relative), 'Fonte'), stat = fs.lstatSync(absolute);

@@ -27,8 +27,9 @@ const RESP_REALCE = Object.freeze({ sucesso: 0, recursoDesativado: 1, semAbaAtiv
 const MAX_CONSULTAS = 10;
 const MAX_TEXTO_BUSCA = 1024;
 
-const MAX_CHARS_PADRAO = 200000;
-const MAX_CHARS_TETO = 1000000;
+// 2026-11-21: padrão e teto seguem o teto central do ContextBroker (context/tipos.js), antes 200 mil / 1 milhão.
+const MAX_CHARS_TETO = require('./context/tipos').LIMITES.maxCaracteres;
+const MAX_CHARS_PADRAO = MAX_CHARS_TETO;
 const LIMITE_PEDIDOS_POR_MIN = 30;
 const TIMEOUT_MS = 120000;
 const ORIGENS_PADRAO = Object.freeze(['https://copilot.cloud.microsoft', 'https://m365.cloud.microsoft']);

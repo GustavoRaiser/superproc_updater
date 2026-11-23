@@ -793,18 +793,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const img = btn.querySelector('img');
     const GENERICO = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 1l1.8 4.6L14.5 7l-4.7 1.4L8 13l-1.8-4.6L1.5 7l4.7-1.4z" fill="#ffffff"/></svg>');
     let temIcone = false, tentativas = 0;
+    let contextoIntegrado = false;
     function pintar(d) {
       if (!d) return;
       btn.hidden = !d.disponivel;
       btn.classList.toggle('oculta', !d.visivel);
       btn.setAttribute('aria-pressed', d.visivel ? 'true' : 'false');
+      contextoIntegrado = d.contextoIntegrado === true;
       btn.title = d.visivel ? 'Copilot ativo. Clique para ocultar' : 'Copilot oculto. Clique para mostrar';
+      if (contextoIntegrado) btn.title += '. Botão direito: usar aba atual.';
       if (typeof d.icone === 'string' && /^data:image\//.test(d.icone)) { img.src = d.icone; temIcone = true; }
       else if (!temIcone) img.src = GENERICO;
       if (d.disponivel && !temIcone && tentativas++ < 6) setTimeout(() => api.getCopilotColuna().then(pintar).catch(() => {}), 5000); // ícone oficial chega quando a coluna carrega
     }
     btn.addEventListener('mousedown', (e) => e.preventDefault());
     btn.addEventListener('click', () => (api.cliqueCopilotColuna ? api.cliqueCopilotColuna('esquerdo') : api.toggleCopilotColuna()));
+    btn.addEventListener('contextmenu', (event) => {
+      if (!contextoIntegrado || !api.cliqueCopilotColuna) return;
+      event.preventDefault();
+      api.cliqueCopilotColuna('direito').catch(() => {});
+    });
     api.onCopilotColuna(pintar);
     api.getCopilotColuna().then(pintar).catch(() => {});
   })();

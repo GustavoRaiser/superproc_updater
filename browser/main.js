@@ -1,5 +1,6 @@
 const { app, net, BrowserWindow, WebContentsView, webContents, session, ipcMain, nativeTheme, dialog, Menu, screen, shell, clipboard, protocol, safeStorage } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('node:url');
 const { createFindController, listGlossary } = require('./find/find-engine');
 const { durableUrl, BoundedCache, cacheRetry, LIMITS } = require('./v2-policy');
 const { SessionLinks } = require('./session-links');
@@ -11,9 +12,10 @@ const signedLinks = new SignedLinkMemory();
 // showDialog vive dentro de setupIPC; atalhos fora dele (Ctrl+L) usam esta ponte.
 const dialogBridge = { show: null };
 const V2_SMOKE = process.argv.includes('--v2-smoke');
+const copilotWebPiloto = !V2_SMOKE && process.argv.includes('--copilot-shell-web');
 const experimentoOrigem = require('./copilot-origem-experimental');
-const origemExperimentalLigada = !V2_SMOKE && process.argv.includes(experimentoOrigem.ARG);
-const diagnosticoLoginCopilotLigado = !V2_SMOKE && process.argv.includes('--copilot-diagnostico-login');
+const origemExperimentalLigada = !V2_SMOKE && !copilotWebPiloto && process.argv.includes(experimentoOrigem.ARG);
+const diagnosticoLoginCopilotLigado = !V2_SMOKE && !copilotWebPiloto && process.argv.includes('--copilot-diagnostico-login');
 const fs = require('fs');
 const configManager = require('./config-manager');
 const pdfReader = require('./pdf-reader');
@@ -28,7 +30,7 @@ const atualizacaoZip = require('./atualizacao-zip');
 // Glossário na busca do leitor de PDF (acrescenta à barra do pdf.js, sem alterar a extensão)
 require('./pdf-find-plus').install(app, pdfReader.isViewer, require('electron').webFrameMain);
 const { clearRecoverableCache } = require('./cache-control');
-const clearV2Cache = () => clearRecoverableCache(session.defaultSession, () => { pdfReader.clear(); require('./saneador-pdf').prepared.clear(); });
+const clearV2Cache = () => clearRecoverableCache(session.defaultSession, () => { pdfReader.clear(); });
 const { nextTabId } = require('./tab-cycle');
 const { nativeTabWindowHandler, shouldUnifyNativeTab } = require('./native-tab-window');
 const pilhaRelacionados = require('./pilha-relacionados');
@@ -103,10 +105,12 @@ if (process.platform === 'win32') {
 app.setName('SuperPROC v2');
 // Independent v2 profile; synthetic host tests never open the normal profile.
 try {
-  const profile = V2_SMOKE ? path.resolve(__dirname,'../.test-runs/host-'+Date.now()) : path.join(app.getPath('appData'),'superproc-browser-v2');
-  if(V2_SMOKE)fs.mkdirSync(profile,{recursive:true});
+  const profile = V2_SMOKE ? path.resolve(__dirname,'../.test-runs/host-'+Date.now()) : path.join(app.getPath('appData'), limpezaTotal.NOME_PERFIL);
+  fs.mkdirSync(profile, { recursive: true });
   app.setPath('userData',profile);
-} catch (_) {}
+} catch (err) {
+  if (!V2_SMOKE) throw err;
+}
 
 // Legislação local: normas da biblioteca abrem em superproc-lei://norma/<slug> (servidas do disco, sem rede).
 // O esquema precisa ser declarado antes de o app ficar pronto.
@@ -197,17 +201,60 @@ const secondScreen = criarSegundoMonitor({
 // Coluna fixa do Copilot (modo Integrada com Copilot): view própria da janela principal, fora da lista de abas.
 const anfitriaoCopilot = require('./copilot-anfitriao-host');
 const copilotShellModulo = require('./copilot-shell/shell-host');
-const copilotShellCfg = V2_SMOKE || origemExperimentalLigada ? { ligado: false } : copilotShellModulo.configuracao({ argv: process.argv, existe: p => fs.existsSync(p), caminhoFlag: path.join(app.getPath('userData'), copilotShellModulo.ARQUIVO_FLAG) });
+const copilotShellCfg = V2_SMOKE || copilotWebPiloto || origemExperimentalLigada
+  ? { ligado: false }
+  : copilotShellModulo.configuracao({ argv: process.argv, existe: p => fs.existsSync(p), caminhoFlag: path.join(app.getPath('userData'), copilotShellModulo.ARQUIVO_FLAG) });
 const copilotShellLigado = !!copilotShellCfg.ligado;
-const anfitriaoLigado = !V2_SMOKE && !origemExperimentalLigada && !copilotShellLigado && anfitriaoCopilot.estaLigado({ argv: process.argv, existe: p => fs.existsSync(p), caminhoFlag: path.join(app.getPath('userData'), anfitriaoCopilot.ARQUIVO_FLAG) });
+const anfitriaoLigado = !V2_SMOKE && !copilotWebPiloto && !origemExperimentalLigada && !copilotShellLigado && anfitriaoCopilot.estaLigado({ argv: process.argv, existe: p => fs.existsSync(p), caminhoFlag: path.join(app.getPath('userData'), anfitriaoCopilot.ARQUIVO_FLAG) });
+const clientIdCopilot = process.env.SUPERPROC_COPILOT_CLIENT_ID;
+const tenantCopilot = process.env.SUPERPROC_COPILOT_TENANT;
+const copilotWebIntegrado = !V2_SMOKE && !origemExperimentalLigada && !copilotShellLigado && !anfitriaoLigado;
+const criarConversaAposCarga = copilotWebIntegrado && process.argv.includes('--copilot-web-criar-conversa') &&
+  clientIdCopilot && tenantCopilot;
+const urlPilotoCopilot = process.argv.includes('--copilot-web-criar-conversa')
+  ? URL_COPILOT
+  : 'https://cr.m365copilotapp.svc.cloud.microsoft/';
+const origensCopilotWeb = new Set([new URL(urlPilotoCopilot).origin, new URL(URL_COPILOT).origin]);
+// Ponte do cr-host (copilot-shell/cr-bridge-host.js): dá à página do Copilot o canal de extensão para consultar abas, sempre
+// sob o consentimento local. Ligada por padrão na coluna Web (decisão do responsável em 2026-11-19): instalou, o Copilot lê
+// as abas. A ponte só entra na página depois do login; com `chrome.runtime` presente desde a carga a página do Copilot
+// entra em laço de login (observado em 2026-11-19).
+// Para desligar: `--copilot-sem-ponte` nesta execução, ou o arquivo `copilot-ponte.desligar` no perfil (vale em toda
+// abertura — o app é instância única e uma segunda abertura com o argumento encerra). `--copilot-ponte` ficou sem efeito.
+const ARQUIVO_PONTE_DESLIGADA = 'copilot-ponte.desligar';
+const ponteDesligadaNoPerfil = () => { try { return fs.existsSync(path.join(app.getPath('userData'), ARQUIVO_PONTE_DESLIGADA)); } catch (_) { return false; } };
+const ponteCopilotLigada = copilotWebIntegrado && !process.argv.includes('--copilot-sem-ponte') && !ponteDesligadaNoPerfil();
+// Sonda de ações do Copilot no navegador (experimento, DESLIGADA por padrão e sem executar nada; ver tratarAcao em cr-bridge-host.js):
+// --copilot-acoes=sonda nesta execução, ou o arquivo copilot-acoes.sonda no perfil.
+const ARQUIVO_ACOES_SONDA = 'copilot-acoes.sonda';
+const modoAcoesCopilot = () => { try { return process.argv.includes('--copilot-acoes=sonda') || fs.existsSync(path.join(app.getPath('userData'), ARQUIVO_ACOES_SONDA)) ? 'sonda' : 'desligado'; } catch (_) { return 'desligado'; } };
+let adminCopilot = null; // AdminBroker (criado quando a coluna Web do Copilot sobe; ver ferramentas-host.js)
 let sessaoOrigemExperimental = null;
 const colunaCopilot = criarColunaCopilot({
   ...(origemExperimentalLigada ? { url: experimentoOrigem.URL_SITE } : copilotShellLigado ? { url: copilotShellModulo.urlDaPagina(), preload: copilotShellModulo.PRELOAD, fallbackUrl: URL_COPILOT } : anfitriaoLigado ? { url: anfitriaoCopilot.urlDaPagina(URL_COPILOT), preload: anfitriaoCopilot.PRELOAD, fallbackUrl: URL_COPILOT } : {}),
+  ...(copilotWebIntegrado ? {
+    url: urlPilotoCopilot === URL_COPILOT
+      ? urlPilotoCopilot
+      : pathToFileURL(path.join(__dirname, 'copilot-shell', 'entrada-web.html')).href,
+    // Com sessão Microsoft já no perfil (cookie de login do Entra ID), a tela "Abrir o Copilot" é pulada e a coluna abre direto o
+    // site; sem sessão, a tela de entrada continua. Só existência/validade do cookie, nunca o valor (ver copilot-shell/sessao-microsoft.js).
+    ...(urlPilotoCopilot === URL_COPILOT ? {} : { resolverUrlInicial: (urlEntrada) => require('./copilot-shell/sessao-microsoft').urlInicialDaColuna({
+      sessao: session.defaultSession, urlEntrada, urlCopilot: urlPilotoCopilot, log: (m) => { try { logDebugger('COPILOT_ENTRADA', m); } catch (_) {} } }) }),
+    ...(ponteCopilotLigada ? { preload: path.join(__dirname, 'copilot-shell', 'cr-bridge-preload.js') } : {})
+  } : {}),
   WebContentsView, Menu,
+  observarColuna: criarConversaAposCarga ? (coluna) => require('./copilot-shell/conversa-web').observarConversaWeb({
+    coluna, BrowserWindow, clientId: clientIdCopilot, tenant: tenantCopilot,
+    log: (categoria, codigo) => logDebugger(categoria, codigo, { codigo })
+  }) : undefined,
+  removerContornoFoco: !copilotWebIntegrado,
+  observarJanela: copilotWebIntegrado ? (resumo) => { if (observadorJanelasCopilot) observadorJanelasCopilot(resumo); } : null,
+  observarPagina: copilotWebIntegrado ? (ev) => { if (observadorPaginaCopilot) observadorPaginaCopilot(ev); } : null,
+  observarJanelaEstado: copilotWebIntegrado ? (aberta) => { if (aberta) loginCopilotAbertos++; else { loginCopilotAbertos = Math.max(0, loginCopilotAbertos - 1); ultimoLoginCopilotFechado = Date.now(); } } : null,
   getSession: () => origemExperimentalLigada ? (sessaoOrigemExperimental ||= session.fromPartition('copilot-origem-experimental')) : session.defaultSession,
   getUserAgent: () => CHROME_USER_AGENT,
   getMainWindow: () => mainWindow,
-  abrirComoAba: (url) => setImmediate(() => createTab(url, false, { referrer: URL_COPILOT })),
+  abrirComoAba: (url) => setImmediate(() => createTab(url, false, { referrer: copilotWebIntegrado ? urlPilotoCopilot : URL_COPILOT })),
   diagnosticoNavegacao: diagnosticoLoginCopilotLigado,
   log: (cat, msg) => { try { logDebugger(cat, msg); } catch (_) {} }
 });
@@ -215,6 +262,58 @@ const colunaCopilot = criarColunaCopilot({
 let escutaCopilot = null;
 let envioPdfCopilotRef = null; // atalho "PDF no Copilot" (F4); preenchido adiante
 let fastCopilotRef = null; // preenchido quando o Fast Copilot é criado
+
+// Copilot nos textos: ícone do Copilot na linha do cursor + menu de prompts (redator-linha.js), em qualquer página http/https das
+// abas. O pedido vai à coluna do Copilot como CITAÇÃO + prompt pronto (redator-coluna.js) e a resposta volta à aba como proposta,
+// aplicada só com o aceite da pessoa. Trava geral: --sem-redator ou o arquivo redator.desligar no perfil; fora do teste de fumaça
+// (--v2-smoke). No uso normal quem liga/desliga é a chave "Copilot nos textos" do menu Modo de abertura.
+const redatorLigado = () => { try { return !V2_SMOKE && !process.argv.includes('--sem-redator') && !fs.existsSync(path.join(app.getPath('userData'), 'redator.desligar')); } catch (_) { return false; } };
+let colunaRedatorRef = null; // acesso à coluna do Copilot (preenchido junto do exportador de contexto)
+const redatorLinhaMod = require('./redator-linha');
+const redatorLinha = redatorLinhaMod.criarRedatorLinha({
+  ponte: require('./redator-coluna').criarPonteColuna({
+    getColunaWc: () => (colunaRedatorRef ? colunaRedatorRef.getWc() : null),
+    mostrarColuna: () => { if (colunaRedatorRef) colunaRedatorRef.mostrar(); },
+    aceitarDestino: (wc) => (colunaRedatorRef ? colunaRedatorRef.aceitar(wc) : false),
+    log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
+  }),
+  guarda: redatorLinhaMod.criarGuardaPrompts({ fs, arquivo: () => path.join(app.getPath('userData'), 'redator-prompts.json') }),
+  copiar: (texto) => { try { clipboard.writeText(texto); } catch (_) {} },
+  log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
+});
+// O ícone depende da coluna: só fica ativo com a chave "Copilot nos textos" ligada E a coluna do Copilot ligada e visível.
+// Quando uma dessas condições cai (chave desligada, coluna desligada ou escondida pelo botão da barra), o ícone sai de todas
+// as abas na hora; quando voltam, ele é reinstalado.
+const redatorAbas = new Set(); // webContents das abas acompanhadas
+const redatorAtivo = () => { try { return redatorLigado() && configManager.getCopilotNosTextos() && colunaCopilotLigada() && !colunaCopilotOculta; } catch (_) { return false; } };
+let redatorAtivoAnterior = null;
+function sincronizarRedator() {
+  const ativo = redatorAtivo();
+  if (ativo === redatorAtivoAnterior) return;
+  redatorAtivoAnterior = ativo;
+  for (const wc of [...redatorAbas]) {
+    if (!wc || wc.isDestroyed()) { redatorAbas.delete(wc); continue; }
+    if (ativo) redatorLinha.injetar(wc); else redatorLinha.retirar(wc);
+  }
+  try { logDebugger('COPILOT_TEXTOS', ativo ? 'Ícone nos textos ativo' : 'Ícone nos textos inativo (chave desligada ou coluna do Copilot fechada)'); } catch (_) {}
+}
+function ligarRedatorNaAba(wc) {
+  if (!redatorLigado() || !wc || wc.isDestroyed()) return;
+  redatorAbas.add(wc); wc.once('destroyed', () => redatorAbas.delete(wc));
+  const injetar = () => { if (redatorAtivo()) redatorLinha.injetar(wc); };
+  wc.on('did-finish-load', injetar);
+  wc.on('dom-ready', injetar);
+  if (!wc.__spRedatorConsole) { wc.__spRedatorConsole = true; wc.on('console-message', (_e, _l, msg) => { if (redatorAtivo()) redatorLinha.aoConsole(wc, msg); }); }
+}
+let consentimentoCopilotRef = null; // motor de consentimento da ponte do cr-host (só com ponteCopilotLigada)
+let cartaoConsentimentoRef = null;  // cartão "O Copilot deseja usar o conteúdo" sobre a coluna
+let transporteCrRef = null;         // valida e encaminha os canais copilot-cr-*
+let diagnosticoPonteCr = null;      // resumo da ponte para o menu de diagnóstico
+let loginCopilotAbertos = 0;        // janelas de login da coluna abertas agora
+let ultimoLoginCopilotFechado = 0;  // instante do último fechamento, para dar folga após o login
+let observadorJanelasCopilot = null; // recebe o resumo de cada janela aberta pela coluna (login)
+let agendarDiagnosticoColuna = () => {}; // grava <perfil>/copilot-ponte-diagnostico.json (nomes, rotas e contagens)
+let observadorPaginaCopilot = null; // recebe console e recursos da página da coluna (diagnóstico)
 let hostCloseGuard = null;
 let tabs = [];
 let activeTabId = null;
@@ -878,6 +977,7 @@ function showCfgMenu(coords) {
         modoAbertura: openMode.normalizarModo(cfg.modoAbertura),
         colunaCopilot: configManager.getColunaCopilot(),
         relacionadosEmPilha: configManager.getRelacionadosEmPilha(),
+        copilotNosTextos: configManager.getCopilotNosTextos(),
         ...configManager.getLayoutPrefs(),
         doisMonitoresDisponivel: openMode.modoDisponivel('doisMonitores', screen.getAllDisplays()),
         isUpdating: isExtensionsUpdating,
@@ -1328,6 +1428,19 @@ function reloadWebPagesAfterExtensionChange() {
 async function openContextualFind(wc, target, tabId) {
   try { if(await pdfReader.find(wc)) return; } catch (_) {}
   openFindWindow(target, tabId);
+}
+
+// Teste de fumaça (--v2-smoke): o perfil descartável recebe só a extensão SuperPROC, espelhada do pacote
+// (extensao-superproc/), e o leitor de PDF embutido. AZflow e Epryx ficam desligadas: elas não existem mais no
+// repositório (vêm da Chrome Web Store para o perfil do usuário) e o teste não pode depender de rede nem do perfil real.
+function prepararExtensoesDoTeste() {
+  if (!V2_SMOKE || !app.getPath('userData').includes('.test-runs')) return;
+  try {
+    extensaoSuperprocLocal.espelhar({ fonte: raizDaExtensao(), destino: destinoSuperproc() });
+    const cfg = configManager.loadConfig();
+    cfg.extensionLoading = { ...cfg.extensionLoading, superproc: true, azflow: false, epryx: false, pdf: true };
+    configManager.saveConfig(cfg);
+  } catch (err) { console.error('[Smoke] Falha ao preparar a extensão SuperPROC:', err); }
 }
 
 // --- PATCHES DE COMPATIBILIDADE PARA EXTENSÕES NO ELECTRON ---
@@ -2181,7 +2294,7 @@ async function enviarEstadoColuna(forcar = false) {
   const chave = JSON.stringify([disponivel, visivel, !!icone]);
   if (!forcar && chave === ultimoEstadoColuna) return;
   ultimoEstadoColuna = chave;
-  try { mainWindow.webContents.send('copilot-coluna-state', { disponivel, visivel, icone }); } catch (_) {}
+  try { mainWindow.webContents.send('copilot-coluna-state', { disponivel, visivel, icone, contextoIntegrado: copilotWebIntegrado }); } catch (_) {}
 }
 function getLayoutAreas(tamanho) {
   const [largura, altura] = tamanho || mainWindow.getContentSize();
@@ -2196,6 +2309,7 @@ function getLayoutAreas(tamanho) {
 // --- GERENCIAMENTO DE LAYOUT (ABAS E BALÃO FLUTUANTE HOVER) ---
 function updateLayoutBounds() {
   if (!mainWindow) return;
+  sincronizarRedator(); // a coluna do Copilot pode ter sido mostrada/ocultada: o ícone nos textos acompanha
   const [totalWidth, totalHeight] = mainWindow.getContentSize();
   const availableHeight = Math.max(0, totalHeight - TITLEBAR_HEIGHT);
   // Todas as coordenadas partem de (0,0) da área de conteúdo da janela: a coluna do Copilot (se houver)
@@ -2205,6 +2319,7 @@ function updateLayoutBounds() {
   const divisaoGrupo = layoutGeometry.dividirConteudo(area, configManager.getLayoutPrefs().arvorePct);
   const divisaoMeio = layoutGeometry.dividirConteudo(area, 50);
   colunaCopilot.aplicar(areas.copilot);
+  if (cartaoConsentimentoRef) cartaoConsentimentoRef.reposicionar();
   enviarRecuoTitlebar(area.x);
   enviarEstadoColuna().catch(() => {});
 
@@ -2555,6 +2670,69 @@ function _createPoolView(url) {
   return view;
 }
 
+// ── Catálogo do painel para o Copilot ────────────────────────────────────────────────────────────────────
+// Atalhos marcados "visíveis ao Copilot" aparecem na lista de abas da ponte como itens "sob demanda": o Copilot sabe que existem e,
+// quando pede o conteúdo, a página é aberta numa view OCULTA do próprio pool do painel (sem aparecer na barra nem nas abas
+// unificadas), lida e deixada para o descarte por inatividade de sempre. Se o item já está no pool (aberto antes no painel), a mesma
+// view é reaproveitada. Ver context/tab-registry.js (contrato) e COPILOT-SHELL.md.
+const catalogoPainelCopilot = (() => {
+  const ROTULO = { jurisprudencia: 'Jurisprudência', legislacao: 'Legislação', ferramentas: 'Ferramentas' };
+  const identidades = new Map(); // itemId -> Symbol estável (a ponte guarda a identidade ao listar; carregar a página não a muda)
+  const avisos = new Map();      // itemId -> [aviso] da última carga
+  const pendentes = new Map();   // itemId -> Promise (cargas simultâneas do mesmo item viram uma só)
+  const TEMPO_CARGA_MS = 15000, ASSENTAR_MS = 1000;
+
+  const vista = (itemId) => { const e = panelViewPool.get(itemId); return e && hasLiveWebContents(e.view) ? e : null; };
+
+  function esperarCarga(wc, ms) {
+    return new Promise((resolve) => {
+      const pronto = () => !wc.isDestroyed() && !wc.isLoading() && !!wc.getURL() && wc.getURL() !== 'about:blank';
+      if (wc.isDestroyed()) return resolve(false);
+      if (pronto()) return resolve(true);
+      let fim = false;
+      const concluir = (v) => { if (fim) return; fim = true; clearTimeout(t); try { wc.removeListener('did-stop-loading', aoParar); wc.removeListener('destroyed', aoDestruir); } catch (_) {} resolve(v); };
+      const aoParar = () => { if (pronto()) concluir(true); };
+      const aoDestruir = () => concluir(false);
+      const t = setTimeout(() => concluir(false), ms);
+      wc.on('did-stop-loading', aoParar); wc.once('destroyed', aoDestruir);
+    });
+  }
+
+  async function carregar(itemId) {
+    const link = configManager.encontrarLink(itemId);
+    if (!link || link.copilot !== true) throw Error('item fora do catálogo');
+    let entry = vista(itemId);
+    const nova = !entry;
+    if (!entry) {
+      // Sem expulsar outros itens do pool (o limite do painel vale para o que a pessoa abre; este item some sozinho por inatividade).
+      const view = _createPoolView(link.url);
+      entry = { view, idleTimer: null, lastInteraction: Date.now(), url: link.url, title: link.nome, category: configManager.normalizeCategory(link.categoria) };
+      panelViewPool.set(itemId, entry);
+    }
+    _clearPanelIdleTimer(entry); entry.lastInteraction = Date.now();
+    const wc = entry.view.webContents;
+    const terminou = await esperarCarga(wc, TEMPO_CARGA_MS);
+    const lista = [];
+    if (!terminou) lista.push('CONTENT_EXTRACTION_TIMEOUT'); // leitura parcial: o ContextBroker marca truncated
+    else if (nova) await new Promise((r) => setTimeout(r, ASSENTAR_MS)); // páginas que montam o texto por script logo após o load
+    try { if (!wc.isDestroyed() && await wc.executeJavaScript(`!!document.querySelector('input[type="password"]')`, false)) lista.push('PAGE_REQUIRES_LOGIN'); } catch (_) { /* sem verificação */ }
+    avisos.set(itemId, lista);
+    if (sidePanel.activeKey !== itemId) _schedulePanelIdle(itemId); // visível no painel: o descarte só conta quando ele sair de lá
+    return wc;
+  }
+
+  return {
+    listar: () => configManager.listarLinksCopilot().map((l) => ({ itemId: l.id, titulo: (ROTULO[l.categoria] || 'Painel') + ': ' + l.nome, url: l.url, categoria: l.categoria })),
+    view: (itemId) => { const e = vista(itemId); return e ? e.view.webContents : null; },
+    identidade: (itemId) => { if (!identidades.has(itemId)) identidades.set(itemId, Symbol(itemId)); return identidades.get(itemId); },
+    avisos: (itemId) => avisos.get(itemId) || [],
+    materializar: (itemId) => {
+      if (!pendentes.has(itemId)) pendentes.set(itemId, carregar(itemId).finally(() => pendentes.delete(itemId)));
+      return pendentes.get(itemId);
+    }
+  };
+})();
+
 function openSidePanel({ url, category = 'jurisprudencia', title = '', id = '' }) {
   if (!mainWindow || !url) return;
   // Abrir uma norma local (menu ou atalho) também conta como "abrir a Legislação" no dia.
@@ -2749,7 +2927,9 @@ function notifyPanelHeaderData() {
       title: sidePanel.title,
       mode: sidePanel.mode,
       url: sidePanel.url,
-      isPinned: !!sidePanel.isPinned
+      isPinned: !!sidePanel.isPinned,
+      // Marca "visível ao Copilot" do item aberto (só existe para atalhos com id, vindos do menu de acesso rápido).
+      ...(() => { const l = configManager.encontrarLink(sidePanel.activeKey); return { copilotDisponivel: !!l, copilotVisivel: !!(l && l.copilot === true) }; })()
     });
   }
 }
@@ -2969,7 +3149,6 @@ function checkAndHandleSessionConflict(view) {
 
 function setupTabViewEvents(view, tabData) {
   printToPdf.attach(view.webContents);
-  require('./saneador-pdf').registerPreload(view.webContents.session);
   if (view && view.webContents) {
     view.webContents.setMaxListeners(50);
   }
@@ -3522,6 +3701,7 @@ function setupTabViewEvents(view, tabData) {
 
   view.webContents.on('did-finish-load', handleLoadChecks);
   view.webContents.on('dom-ready', handleLoadChecks);
+  ligarRedatorNaAba(view.webContents); // ícone do Copilot na linha do cursor (redator-linha.js)
 }
 
 // Modo de abertura realmente aplicado (Dois monitores sem 2 monitores cai para Integrada).
@@ -3536,7 +3716,7 @@ function colunaCopilotLigada() {
 
 function decidirAberturaDoPedido(details, sourceTab, middleClick) {
   const url = details.url || '';
-  if (!sourceTab.saneadorJobOwner && configManager.getRelacionadosEmPilha() &&
+  if (configManager.getRelacionadosEmPilha() &&
       pilhaRelacionados.ehRemessaExterna(url) && pilhaRelacionados.deveEmpilhar({
         urlOrigem: sourceTab.url, urlDestino: url, papelOrigem: getProcessRole(sourceTab.url), papelDestino: null
       })) return { destino: 'aba', unificar: false };
@@ -3544,8 +3724,7 @@ function decidirAberturaDoPedido(details, sourceTab, middleClick) {
     disposition: details.disposition,
     middleClick,
     temPapelProcesso: !!getProcessRole(url),
-    urlVazia: !url || url === 'about:blank',
-    origemSaneador: !!sourceTab.saneadorJobOwner
+    urlVazia: !url || url === 'about:blank'
   });
 }
 
@@ -3615,14 +3794,8 @@ function registerNativeTab(view, sourceTab, details, decisao = null) {
     id, view, title: 'Carregando...', url: details.url,
     favicon: '', active: false, isStartupTab: false,
     nativeSourceTabId: sourceTab.id,
-    nativeStandalone: !sourceTab.saneadorJobOwner && !(decisao ? decisao.unificar : shouldUnifyNativeTab(details)),
-    saneadorJobOwner: sourceTab.saneadorJobOwner
+    nativeStandalone: !(decisao ? decisao.unificar : shouldUnifyNativeTab(details))
   };
-  if (sourceTab.saneadorJobOwner && sourceTab.groupId) {
-    tab.groupId = sourceTab.groupId;
-    tab.processRole = 'editor';
-    tab.procNumber = sourceTab.procNumber;
-  }
   tryGroupNativeTab(tab);
   // Aberto (clique do meio/window.open) a partir da capa de OUTRO processo: entra na pilha de relacionados da origem.
   if (configManager.getRelacionadosEmPilha()) pilhaRelacionados.marcar(tab, sourceTab, {
@@ -3781,8 +3954,8 @@ function handleOpenProcessTab(sourceTabId, targetUrl, navOptions = {}) {
   const sourceTab = targetInfo?.role === 'arvore' ? resolverOrigemDaArvore(tabs, abaOrigem, targetUrl) : abaOrigem;
   const sourceInfo = sourceTab ? getProcessInfo(sourceTab.url, sourceTab.title) : null;
 
-  // Modo Simples: sem sistema unificado, o pedido vira uma aba comum. Saneador e a divisão manual
-  // (forcarUnificada) mantêm o agrupamento.
+  // Modo Simples: sem sistema unificado, o pedido vira uma aba comum. A divisão manual
+  // (forcarUnificada) mantém o agrupamento.
   if (!openMode.abrirProcessoUnificado(getEffectiveOpenMode(), navOptions)) {
     return createTab(targetUrl, false, {
       ...navOptions,
@@ -5079,6 +5252,7 @@ function setupIPC() {
       local('fastcopilot', fastCopilotCaixa && fastCopilotCaixa.getWindow(), 'fast-copilot-box/box.html'),
       ...(copilotShellLigado ? [local('copilotshell', colunaCopilot.getView(), 'copilot-shell/shell.html')] : []),
       ...(anfitriaoLigado ? [local('copilotanfitriao', colunaCopilot.getView(), 'copilot-anfitriao/anfitriao.html')] : []),
+      ...(cartaoConsentimentoRef && cartaoConsentimentoRef.getView() ? [local('copilotconsent', cartaoConsentimentoRef.getView(), 'copilot-shell/consent-overlay.html')] : []),
       local('panel', sidePanel.headerView, 'panel/panel-header.html'),
       local('panel', sidePanel.edgeView, 'panel/panel-edge.html'),
       ...tabs.filter(tab => tab.isEmptyState).map(tab => local('empty', tab.view, 'empty/empty-tab.html'))
@@ -5086,6 +5260,8 @@ function setupIPC() {
     allowPage: (channel, event) => {
       const wc = event.sender;
       if (!wc || wc.isDestroyed() || !event.senderFrame) return false;
+      // Ponte do cr-host: só a coluna do Copilot, no quadro principal e numa origem do cr-host. Abas comuns nunca passam aqui.
+      if (channel.startsWith('copilot-cr-')) return !!transporteCrRef && transporteCrRef.remetenteValido(event);
       const tab = tabs.find(item => item.view?.webContents === wc);
       const panel = [...panelViewPool.values()].some(item => item.view?.webContents === wc);
       // Impressão aceita frames filhos reais de uma aba/painel gerenciado (PDF incorporado).
@@ -5112,32 +5288,6 @@ function setupIPC() {
   hostIPC.on('superproc:print-pdf', event => {
     // O frame solicitante é definido pelo Electron, não por dados da página.
     if (event.senderFrame) printToPdf.request(event.sender, event.senderFrame);
-  });
-  require('./saneador-interrupt').install(ipcMain, sender => tabs.some(tab => tab.view?.webContents === sender));
-  require('./saneador-minuta').install(ipcMain, {
-    owns: sender => tabs.some(tab => tab.view?.webContents === sender),
-    open: job => {
-      const source = tabs.find(tab => tab.view?.webContents === job.sender);
-      if (!source) throw new Error('A capa do processo não está mais disponível.');
-      if (source.groupId && tabs.some(tab => tab.groupId === source.groupId && tab.processRole === 'editor')) throw new Error('Já existe um editor aberto neste processo. Feche-o antes de iniciar a minuta do lote.');
-      const tab = handleOpenProcessTab(source.id, job.url, { session: job.sender.session, referrer: job.sender.getURL(), forcarUnificada: true });
-      tab.saneadorJobOwner = job.id;
-      tab.nativeStandalone = false;
-      tab.processRole = 'editor';
-    },
-    contents: jobId => tabs.filter(tab => tab.saneadorJobOwner === jobId).map(tab => tab.view.webContents),
-    close: jobId => {
-      // closeTab destrói apenas estas subabas. Não chama Sair nem desbloquear.
-      for (const tab of [...tabs].filter(tab => tab.saneadorJobOwner === jobId)) closeTab(tab.id);
-    }
-  });
-  require('./saneador-copilot').install(ipcMain, sender => require('./saneador-pdf').resolveManagedTargets(tabs, sender));
-  require('./editor-copilot').install(ipcMain, {
-    owns: sender => tabs.some(tab => tab.view?.webContents === sender),
-    getCopilotView: () => colunaCopilot.estaAnexada() ? colunaCopilot.getView() : null
-  });
-  require('./saneador-pdf').install(ipcMain, sender => {
-    return require('./saneador-pdf').resolveManagedTargets(tabs, sender);
   });
   // Janela
   hostIPC.on('window-minimize', () => mainWindow && mainWindow.minimize());
@@ -5197,6 +5347,12 @@ function setupIPC() {
     }
   });
   hostIPC.on('panel-toggle-pin', () => toggleSidePanelPin());
+  hostIPC.on('panel-toggle-copilot', () => {
+    const l = configManager.encontrarLink(sidePanel.activeKey);
+    if (!l) return;
+    configManager.setLinkCopilot(l.id, l.copilot !== true);
+    notifyPanelHeaderData(); // a ponte do Copilot relê a lista de abas a cada ~0,5 s e passa a mostrar (ou esconder) o item
+  });
   hostIPC.on('panel-content-toggle-pin', (event) => {
     // Somente o conteúdo do painel visível pode alterar sua fixação.
     if (sidePanel.isOpen && hasLiveWebContents(sidePanel.contentView) &&
@@ -5356,6 +5512,65 @@ function setupIPC() {
     updated.corretorOrtografico = enabled;
     configManager.saveConfig(updated);
     spellcheck.setEnabled(enabled);
+    return enabled;
+  });
+  // Switch "Permitir que o Copilot use o conteúdo do navegador" (equivale ao controle 479 de edge://settings/ai).
+  hostIPC.handle('config-get-copilot-politicas-ia', (event) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents) throw Error('Origem inválida.');
+    const POL = require('./copilot-shell/politicas-ia');
+    return { groups: POL.grupos(), items: POL.descrever(POL.resolver(configManager.loadConfig().copilotPoliticasIA)) };
+  });
+  hostIPC.handle('config-set-copilot-politica-ia', async (event, nome, valor) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents || typeof nome !== 'string') throw Error('Origem inválida.');
+    const POL = require('./copilot-shell/politicas-ia');
+    const limpo = POL.validar(nome, valor);
+    const atual = POL.resolver(configManager.loadConfig().copilotPoliticasIA);
+    atual[nome] = limpo;
+    // No arquivo fica só o que difere do padrão (caixa desligada ou lista preenchida): são centenas de políticas.
+    if (!configManager.saveConfig({ ...configManager.loadConfig(), copilotPoliticasIA: POL.compactar(atual) })) throw Error('Não foi possível salvar.');
+    await configManager.flush();
+    return limpo;
+  });
+  // Caixa de um ramo da árvore: liga ou desliga várias políticas de caixa numa gravação só.
+  hostIPC.handle('config-set-copilot-politicas-ia-lote', async (event, nomes, valor) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents) throw Error('Origem inválida.');
+    const POL = require('./copilot-shell/politicas-ia');
+    const novo = POL.aplicarLote(POL.resolver(configManager.loadConfig().copilotPoliticasIA), nomes, valor);
+    if (!configManager.saveConfig({ ...configManager.loadConfig(), copilotPoliticasIA: POL.compactar(novo) })) throw Error('Não foi possível salvar.');
+    await configManager.flush();
+    return valor;
+  });
+  hostIPC.handle('config-get-copilot-admin', (event) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents) throw Error('Origem inválida.');
+    return require('./copilot-shell/ferramentas-host').lerPoliticaDoDisco(app.getPath('userData'));
+  });
+  hostIPC.handle('config-set-copilot-admin', (event, chave, valor) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents || typeof chave !== 'string' || typeof valor !== 'boolean') throw Error('Origem inválida.');
+    return require('./copilot-shell/ferramentas-host').gravarChaveDePolitica(app.getPath('userData'), chave, valor);
+  });
+  hostIPC.handle('config-set-copilot-texto-completo', async (event, enabled) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents || typeof enabled !== 'boolean') throw Error('Origem inválida.');
+    if (!configManager.saveConfig({ ...configManager.loadConfig(), copilotIgnorarMaxCharsDaPagina: enabled })) throw Error('Não foi possível salvar.');
+    await configManager.flush();
+    return enabled;
+  });
+  hostIPC.handle('config-set-copilot-ia-local', async (event, enabled) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents || typeof enabled !== 'boolean') throw Error('Origem inválida.');
+    const POL = require('./copilot-shell/politicas-ia');
+    const pols = POL.resolver(configManager.loadConfig().copilotPoliticasIA);
+    pols.GenAILocalFoundationalModelSettings = enabled; pols.BuiltInAIAPIsEnabled = enabled;
+    if (!configManager.saveConfig({ ...configManager.loadConfig(), copilotIaNoDispositivo: enabled, copilotPoliticasIA: POL.compactar(pols) })) throw Error('Não foi possível salvar.');
+    await configManager.flush();
+    return enabled;
+  });
+  hostIPC.handle('config-set-copilot-contexto', async (event, enabled) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents || typeof enabled !== 'boolean') throw Error('Origem inválida.');
+    if (consentimentoCopilotRef) {
+      if (!(await consentimentoCopilotRef.definir(enabled))) throw Error('Não foi possível salvar.');
+      return enabled;
+    }
+    if (!configManager.saveConfig({ ...configManager.loadConfig(), copilotConsentimentoEstado: enabled ? 1 : 2, copilotContextoPermitido: enabled })) throw Error('Não foi possível salvar.');
+    await configManager.flush();
     return enabled;
   });
   hostIPC.handle('config-add-link', (e, { category, nome, url }) => {
@@ -5552,8 +5767,16 @@ function setupIPC() {
         const ligada = configManager.setColunaCopilot(data?.ligada === true);
         if (ligada) colunaCopilotOculta = false;
         logDebugger('COLUNA_COPILOT', 'Coluna do Copilot alterada', { ligada });
+        sincronizarRedator(); // sem a coluna, o ícone do Copilot nos textos sai das abas
         setTimeout(() => { for (const t of tabs) if (t.view && t.view.webContents && typeof fastCopilot !== 'undefined') fastCopilot.injetarBotao(t.view.webContents); }, 300);
         agendarReaplicacaoLayout(50);
+        break;
+      }
+      case 'set-copilot-textos': {
+        // Chave "Copilot nos textos": ícone do Copilot na linha do cursor. Vale na hora, em todas as abas abertas.
+        const ligado = configManager.setCopilotNosTextos(data?.ligado !== false);
+        logDebugger('COPILOT_TEXTOS', 'Copilot nos textos alterado', { ligado });
+        sincronizarRedator();
         break;
       }
       case 'set-layout-pct': {
@@ -6231,10 +6454,10 @@ function setupIPC() {
     getColunaAtiva: colunaCopilotLigada,
     getColunaView: () => (colunaCopilot.estaAnexada() ? colunaCopilot.getView() : null),
     getAlvos: (origem) => { // origem pode ser a própria coluna do Copilot (foco lá) ou nula: então usa o grupo da aba ativa
-      const gerenciados = require('./saneador-pdf').resolveManagedTargets(tabs, origem);
+      const gerenciados = require('./abas-gerenciadas').resolveManagedTargets(tabs, origem);
       if (gerenciados.length) return gerenciados;
       const ativa = tabs.find(t => t.id === activeTabId);
-      const doGrupo = ativa && ativa.view && ativa.view.webContents ? require('./saneador-pdf').resolveManagedTargets(tabs, ativa.view.webContents) : [];
+      const doGrupo = ativa && ativa.view && ativa.view.webContents ? require('./abas-gerenciadas').resolveManagedTargets(tabs, ativa.view.webContents) : [];
       if (doGrupo.length) return doGrupo;
       return ativa && ativa.view && ativa.view.webContents ? [ativa.view.webContents] : [];
     },
@@ -6267,10 +6490,13 @@ function setupIPC() {
   // por colagem nativa (sem script nem estilo na página do Copilot). Ctrl+Shift+K = aba ativa; Ctrl+Shift+J = todas as abas.
   // Texto pequeno vai colado; grande vira arquivo .md (pasta <perfil>/contexto-copilot ou SUPERPROC_PASTA_CONTEXTO), copiado e revelado.
   // Comando de desenvolvimento: iniciar com --contexto-dev imprime (só metadados) o workspace 10 s depois, no console do processo principal. ---
+  let exportadorContexto;
   {
     const ctx = require('./context');
+    const contextoPermitido = () => configManager.loadConfig().copilotContextoPermitido === true;
+    const registroDeAbas = ctx.criarTabRegistry({ getTabs: () => tabs, getActiveTabId: () => activeTabId, catalogo: catalogoPainelCopilot });
     const contextBroker = ctx.criarContextBroker({
-      registry: ctx.criarTabRegistry({ getTabs: () => tabs, getActiveTabId: () => activeTabId }),
+      registry: registroDeAbas,
       log: (tipo, msg) => logDebugger(tipo, msg)
     });
     const copiarArquivoParaAreaDeTransferencia = (caminho) => new Promise((resolve) => {
@@ -6280,7 +6506,7 @@ function setupIPC() {
       filho.on('error', () => { clearTimeout(prazo); resolve(false); });
       filho.on('exit', (codigo) => { clearTimeout(prazo); resolve(codigo === 0); });
     });
-    const exportadorContexto = ctx.criarExportador({
+    exportadorContexto = ctx.criarExportador({
       broker: contextBroker, clipboard, fs, path,
       pasta: process.env.SUPERPROC_PASTA_CONTEXTO || path.join(app.getPath('userData'), 'contexto-copilot'),
       getColunaWc: () => { const v = colunaCopilotLigada() ? colunaCopilot.getView() : null; return v ? v.webContents : null; },
@@ -6288,9 +6514,186 @@ function setupIPC() {
       copiarArquivo: copiarArquivoParaAreaDeTransferencia,
       revelar: (caminho) => { try { shell.showItemInFolder(caminho); } catch (_) { /* sem explorador */ } },
       avisar: (texto, nivel, ms) => mostrarAviso(texto, nivel, ms),
+      ...(copilotWebIntegrado ? {
+        contextoPermitido,
+        aceitarDestino: (wc) => {
+          const url = URL.parse(wc.getURL());
+          return url && origensCopilotWeb.has(url.origin) &&
+            /^\/(?:chat(?:\/|$)|home\/?$)/.test(url.pathname);
+        },
+        acompanharContexto: () => {
+          const aba = tabs.find(t => t.id === activeTabId);
+          if (!hasLiveWebContents(aba?.view)) return null;
+          const origem = aba.view.webContents;
+          const url = origem.getURL();
+          const documento = ctx.identidadeDocumento(origem);
+          return () => aba.id === activeTabId && hasLiveWebContents(aba.view) &&
+            aba.view.webContents === origem && ctx.identidadeDocumento(origem) === documento && origem.getURL() === url;
+        },
+        autorizar: async (escopo, testarLeitura) => {
+          const { response } = await dialog.showMessageBox(mainWindow, {
+            type: 'question', title: testarLeitura ? 'Testar leitura local' : 'Usar contexto no Copilot',
+            message: testarLeitura ? 'Testar a leitura da aba ativa no SuperPROC?' :
+              (escopo === 'ativa' ? 'Preparar o conteúdo da aba ativa para o Copilot?' : 'Preparar o conteúdo das abas abertas para o Copilot?'),
+            detail: testarLeitura ? 'O teste mostra apenas o resultado da extração.' :
+              'Você poderá revisar o contexto antes de enviar a mensagem.',
+            buttons: [testarLeitura ? 'Testar leitura' : 'Preparar contexto', 'Cancelar'], defaultId: 1, cancelId: 1, noLink: true
+          });
+          return response === 0;
+        }
+      } : {}),
       log: (tipo, msg) => logDebugger(tipo, msg)
     });
+    colunaRedatorRef = { // usado pelo ícone na linha do cursor (redator-linha.js) para entregar a citação à coluna
+      getWc: () => { const v = colunaCopilotLigada() ? colunaCopilot.getView() : null; return v ? v.webContents : null; },
+      mostrar: () => { if (colunaCopilotOculta) { colunaCopilotOculta = false; updateLayoutBounds(); enviarEstadoColuna(true).catch(() => {}); } },
+      aceitar: (wc) => { const url = URL.parse(wc.getURL()); return !!(copilotWebIntegrado && url && origensCopilotWeb.has(url.origin) && /^\/(?:chat(?:\/|$)|home\/?$)/.test(url.pathname)); }
+    };
     ctx.criarAtalhos({ app, BrowserWindow, webContents, getMainWindow: () => mainWindow, acionar: (escopo) => exportadorContexto.exportar({ escopo }) }).instalar();
+    if (copilotWebIntegrado) {
+      // Diagnóstico da coluna Web gravado no perfil, com ou sem a ponte: o que a página pediu à ponte (nomes e contagens)
+      // e como terminaram as janelas de login abertas por ela (rotas sem parâmetros, presença de código, nome do erro OAuth).
+      // Um arquivo por modo, para comparar uma execução com a ponte e outra sem ela.
+      const arquivoDiagnostico = path.join(app.getPath('userData'), ponteCopilotLigada ? 'copilot-ponte-diagnostico.json' : 'copilot-ponte-diagnostico-sem-ponte.json');
+      const janelasDaColuna = { total: 0, ultimas: [] };
+      // Página da coluna: scripts carregados (só origem+caminho, para estudar o código do app), chamadas fetch/xhr com
+      // status, e erros/avisos do console. Tudo saneado: sem consulta/fragmento de URL, identificadores e cadeias longas
+      // mascarados, número de processo e e-mail removidos, texto curto. Fica só no perfil local.
+      const scriptsDaPagina = new Set();
+      const chamadasDaPagina = new Map(); // 'origem+caminho' -> { status, vezes }
+      const errosDoConsole = new Map();   // mensagem saneada -> vezes
+      const sanear = (t) => String(t || '')
+        .replace(/(https?:\/\/[^\s?#"'<>]+)[?#][^\s"'<>]*/g, '$1')
+        .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<id>')
+        .replace(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g, '<processo>')
+        .replace(/[^\s@"'<>]+@[^\s@"'<>]+\.[A-Za-z]{2,}/g, '<email>')
+        .replace(/[A-Za-z0-9_\-.]{40,}/g, '<omitido>')
+        .replace(/\s+/g, ' ').trim().slice(0, 240);
+      const rotaDe = (u) => { try { const x = new URL(u); return (x.protocol === 'chrome-extension:' ? 'chrome-extension://' : '') + x.host + x.pathname.slice(0, 160); } catch (_) { return sanear(u).slice(0, 160); } };
+      observadorPaginaCopilot = (ev) => {
+        if (!ev) return;
+        if (ev.tipo === 'console') {
+          const chave = ev.nivel + ' ' + sanear(ev.mensagem);
+          if (errosDoConsole.has(chave) || errosDoConsole.size < 120) errosDoConsole.set(chave, (errosDoConsole.get(chave) || 0) + 1);
+        } else if (ev.tipo === 'recursos' && Array.isArray(ev.lista)) {
+          for (const item of ev.lista.slice(0, 2000)) {
+            if (!Array.isArray(item)) continue;
+            const [tipo, url, status] = item;
+            const rota = rotaDe(url);
+            if (tipo === 'script') { if (scriptsDaPagina.size < 400) scriptsDaPagina.add(rota); }
+            else if (tipo === 'fetch' || tipo === 'xmlhttprequest' || tipo === 'beacon' || tipo === 'other') {
+              const atual = chamadasDaPagina.get(rota);
+              if (atual) { atual.vezes++; if (status) atual.status = status; }
+              else if (chamadasDaPagina.size < 300) chamadasDaPagina.set(rota, { tipo, status: status || 0, vezes: 1 });
+            }
+          }
+        }
+        agendarDiagnosticoColuna();
+      };
+      let gravacaoPendente = null;
+      agendarDiagnosticoColuna = () => {
+        if (gravacaoPendente) return;
+        gravacaoPendente = setTimeout(() => {
+          gravacaoPendente = null;
+          let texto;
+          try {
+            const v = colunaCopilot.getView();
+            const onde = v ? require('./copilot-column').resumirRetorno(v.webContents.getURL()).rota : null;
+            texto = JSON.stringify({ atualizadoEm: new Date().toISOString(), ponteLigada: ponteCopilotLigada, atrasoDaPonte: process.argv.find(a => a.startsWith('--copilot-ponte-atraso=')) || 'padrão', colunaEm: onde, janelasDaColuna, ...(diagnosticoPonteCr ? diagnosticoPonteCr() : {}), pagina: { scripts: [...scriptsDaPagina].sort(), chamadas: [...chamadasDaPagina].map(([rota, c]) => ({ rota, ...c })).sort((a, b) => a.rota.localeCompare(b.rota)), errosDoConsole: [...errosDoConsole].map(([mensagem, vezes]) => ({ mensagem, vezes })) } }, null, 2);
+          } catch (_) { return; }
+          const temporario = arquivoDiagnostico + '.tmp';
+          fs.promises.writeFile(temporario, texto, 'utf8').then(() => fs.promises.rename(temporario, arquivoDiagnostico)).catch(() => {});
+        }, 1500);
+        if (typeof gravacaoPendente.unref === 'function') gravacaoPendente.unref();
+      };
+      observadorJanelasCopilot = (resumo) => {
+        janelasDaColuna.total++;
+        janelasDaColuna.ultimas.push(resumo);
+        if (janelasDaColuna.ultimas.length > 6) janelasDaColuna.ultimas.shift();
+        agendarDiagnosticoColuna();
+      };
+      agendarDiagnosticoColuna();
+    }
+    if (ponteCopilotLigada) {
+      // Ponte do cr-host: a página do Copilot consulta abas pelo mesmo contrato do Edge (portas copilot-api / copilot-bridge),
+      // atendido aqui sobre o ContextBroker e sempre condicionado ao consentimento local. Ver COPILOT-SHELL.md.
+      const cr = require('./copilot-shell/cr-bridge-host');
+      const cartao = require('./copilot-shell/consent-overlay-host');
+      const registrarPonte = (cat, msg) => { try { logDebugger(cat, msg); } catch (_) {} };
+      cartaoConsentimentoRef = cartao.criarCartaoConsentimento({
+        WebContentsView, dialog,
+        getMainWindow: () => mainWindow,
+        getAreaDaColuna: () => {
+          const v = colunaCopilotLigada() && !colunaCopilotOculta && colunaCopilot.estaAnexada() ? colunaCopilot.getView() : null;
+          try { return v ? v.getBounds() : null; } catch (_) { return null; }
+        },
+        getSession: () => session.fromPartition('superproc-consentimento-copilot'),
+        log: registrarPonte
+      });
+      consentimentoCopilotRef = require('./copilot-shell/consentimento-edge').criarConsentimento({
+        ler: () => configManager.loadConfig().copilotConsentimentoEstado,
+        // O mesmo ajuste vale para a exportação manual (Ctrl+Shift+K): os dois campos mudam juntos.
+        gravar: async (estado) => {
+          if (!configManager.saveConfig({ ...configManager.loadConfig(), copilotConsentimentoEstado: estado, copilotContextoPermitido: estado === 1 })) return false;
+          await configManager.flush();
+          return true;
+        },
+        mostrarCartao: (opcoes) => cartaoConsentimentoRef.mostrar(opcoes),
+        log: registrarPonte
+      });
+      // Ferramentas nativas do Copilot Chat (busca/realce, histórico, link externo, MCP local) e AdminBroker: tudo desligado até a
+      // pessoa ligar no arquivo copilot-admin.json do perfil (ver copilot-shell/ferramentas-host.js). Ações destrutivas perguntam a cada vez.
+      const politicasIA = { valores: () => configManager.loadConfig().copilotPoliticasIA };
+      require('./copilot-shell/ferramentas-host').garantirArquivoDePolitica(app.getPath('userData')); // cria copilot-admin.json se faltar (nunca sobrescreve)
+      const ferramentasCopilot = require('./copilot-shell/ferramentas-host').criarFerramentasHost({
+        politicasIA, pasta: app.getPath('userData'), registry: registroDeAbas, contextBroker, configManager, abrirNoSistema: (url) => shell.openExternal(url),
+        log: (tipo, msg) => logDebugger(tipo, msg),
+        perguntar: async ({ detalhe }) => {
+          if (!mainWindow || mainWindow.isDestroyed()) return false;
+          const { response } = await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'SuperPROC — pedido do Copilot', message: 'O Copilot pede para ' + detalhe + '.', detail: 'Só permita se foi você quem pediu.', buttons: ['Permitir', 'Negar'], defaultId: 1, cancelId: 1, noLink: true });
+          return response === 0;
+        },
+        operacoes: {
+          criarAba: (url) => createTab(url),
+          trocar: (a) => switchTab(a.id),
+          recarregar: (a) => reloadTab(a),
+          voltar: (a) => { const r = getRootNavigationTab(tabs, a); if (r && r.view && canNavBack(r.view.webContents)) { navBack(r.view.webContents); return true; } return false; },
+          avancar: (a) => { const r = getRootNavigationTab(tabs, a); if (r && r.view && canNavForward(r.view.webContents)) { navForward(r.view.webContents); return true; } return false; },
+          fechar: (a) => closeTab(a.id),
+          realcar: (a, texto) => require('./copilot-shell/ferramentas-host').realcarEmWebContents(a.view && a.view.webContents, texto),
+          limparRealce: (a) => require('./copilot-shell/ferramentas-host').limparRealceEmWebContents(a.view && a.view.webContents),
+          rolar: (a, posicao) => { const wc = a.view && a.view.webContents; if (!wc || wc.isDestroyed()) return false; const js = { top: 'window.scrollTo({top:0})', bottom: 'window.scrollTo({top:document.documentElement.scrollHeight})', up: 'window.scrollBy({top:-Math.round(window.innerHeight*0.8)})', down: 'window.scrollBy({top:Math.round(window.innerHeight*0.8)})' }[posicao]; if (!js) return false; wc.executeJavaScript(js + ';true').catch(() => {}); return true; },
+          capturar: (a) => require('./copilot-shell/ferramentas-host').capturarWebContents(a.view && a.view.webContents)
+        }
+      });
+      adminCopilot = ferramentasCopilot.admin;
+      // Pipe local do harness cli-anything-superproc: só se `pipe` estiver ligado no copilot-admin.json ao iniciar o app.
+      if (ferramentasCopilot.politica().pipe) {
+        const adminPipe = require('./copilot-shell/admin-pipe');
+        const servidorAdmin = adminPipe.criarServidorAdmin({ admin: ferramentasCopilot.admin, log: (tipo, msg) => logDebugger(tipo, msg) });
+        servidorAdmin.iniciar().then(() => adminPipe.gravarDescoberta(app.getPath('userData'), { caminho: servidorAdmin.caminho, token: servidorAdmin.token })).catch(() => { /* sem pipe: o harness não conecta */ });
+        app.once('will-quit', () => { servidorAdmin.parar().catch(() => {}); try { fs.rmSync(path.join(app.getPath('userData'), 'copilot-admin.pipe'), { force: true }); } catch (_) { /* já removido */ } });
+      }
+      const ponteCr = cr.criarPonteCr({
+        broker: contextBroker, consentimento: consentimentoCopilotRef, ferramentas: ferramentasCopilot.ferramentas, politicasIA, iaLocal: { ativo: () => configManager.loadConfig().copilotIaNoDispositivo !== false },
+        ignorarMaxCharsDaPagina: () => configManager.loadConfig().copilotIgnorarMaxCharsDaPagina === true,
+        mapa: require('./copilot-shell/tab-id-mapper').criarMapaDeAbas(), log: registrarPonte, aoRegistrar: () => agendarDiagnosticoColuna(), acoes: { modo: modoAcoesCopilot }
+      });
+      // A ponte entra na página alguns segundos depois da carga (padrão 12 s; `--copilot-ponte-atraso=<segundos>`, 0 = na carga).
+      const argAtraso = process.argv.find(a => /^--copilot-ponte-atraso=\d{1,3}$/.test(a));
+      const atrasoInstalacaoMs = argAtraso ? Number(argAtraso.split('=')[1]) * 1000 : 8000;
+      // Login em andamento = janela de login aberta ou fechada há menos de 4 s (dá folga para a página aplicar o token).
+      const authOcupada = () => loginCopilotAbertos > 0 || (Date.now() - ultimoLoginCopilotFechado) < 4000;
+      transporteCrRef = cr.criarTransporteCr({ ponte: ponteCr, getColunaWc: () => { const v = colunaCopilot.getView(); return v ? v.webContents : null; }, log: registrarPonte, atrasoInstalacaoMs, authOcupada });
+      diagnosticoPonteCr = () => ponteCr.diagnostico();
+      hostIPC.on('copilot-cr-abrir', (e, marca, portaId, nome, idExtensao) => transporteCrRef.abrir(e, marca, portaId, nome, idExtensao));
+      hostIPC.on('copilot-cr-msg', (e, marca, portaId, texto) => transporteCrRef.mensagem(e, marca, portaId, texto));
+      hostIPC.on('copilot-cr-fechar', (e, marca, portaId) => transporteCrRef.fechar(e, marca, portaId));
+      hostIPC.handle('copilot-cr-unico', (e, texto, idExtensao) => transporteCrRef.unico(e, texto, idExtensao));
+      hostIPC.on('copilot-cr-nota', (e, marca, codigo) => transporteCrRef.nota(e, marca, codigo));
+      hostIPC.on('copilot-consentimento-decisao', (e, permitir) => cartaoConsentimentoRef.receberDecisao(e, permitir));
+      app.on('before-quit', () => { try { ponteCr.encerrar(); cartaoConsentimentoRef.fechar(); } catch (_) {} });
+    }
     if (copilotShellLigado) {
       // Shell experimental da coluna (opt-in): ver COPILOT-SHELL.md. A página do shell é local; nenhum conteúdo remoto é carregado nela.
       const sh = copilotShellModulo;
@@ -6301,6 +6704,7 @@ function setupIPC() {
       }
       const shell = sh.criarShell({
         broker: contextBroker, sintetico: !!copilotShellCfg.sintetico, cenario: copilotShellCfg.cenario || 'acesso',
+        contextoPermitido,
         graph, graphPendente: !!copilotShellCfg.graph && !graph, prazoMs: copilotShellCfg.graph ? 180000 : 10000,
         usarHabitual: () => colunaCopilot.usarModoDireto(),
         perguntar: async ({ finalidade, titulo, origem }) => {
@@ -6312,7 +6716,8 @@ function setupIPC() {
         },
         log: (cat, msg) => logDebugger(cat, msg)
       });
-      const remetenteOk = (e) => !!e.senderFrame && e.senderFrame === e.sender.mainFrame && sh.origemAceita(e.senderFrame.url);
+      const remetenteOk = (e) => e.sender === colunaCopilot.getView()?.webContents &&
+        !!e.senderFrame && e.senderFrame === e.sender.mainFrame && sh.origemAceita(e.senderFrame.url);
       const negado = { ok: false, erro: { codigo: 'CANAL_NAO_AUTORIZADO', retentavel: false } };
       hostIPC.handle(sh.CANAIS.estado, (e) => (remetenteOk(e) ? shell.estado() : null));
       hostIPC.handle(sh.CANAIS.acao, (e, nome) => (remetenteOk(e) ? shell.acao(nome) : negado));
@@ -6389,7 +6794,7 @@ function setupIPC() {
     return lerIconeLocal();
   }
   obterIconeColuna = obterIconeCopilot;
-  hostIPC.handle('copilot-coluna-get', async () => ({ disponivel: colunaCopilotLigada(), visivel: !colunaCopilotOculta, icone: await obterIconeCopilot().catch(() => null) }));
+  hostIPC.handle('copilot-coluna-get', async () => ({ disponivel: colunaCopilotLigada(), visivel: !colunaCopilotOculta, icone: await obterIconeCopilot().catch(() => null), contextoIntegrado: copilotWebIntegrado }));
   // Fonte única de contexto do navegador. Ela existe mesmo quando o adaptador
   // de iframe está desligado: um futuro agente próprio pode usar as ferramentas
   // estruturadas sem depender de mensagens privadas de uma página remota.
@@ -6407,7 +6812,7 @@ function setupIPC() {
   // web. Este contrato é consumível somente por código confiável do processo
   // principal ou por um agente futuro explicitamente registrado aqui.
   const ferramentasBrowserContext = browserContextTools.criarFerramentas({
-    provedor: provedorBrowserContext,
+    provedor: provedorBrowserContext, admin: () => adminCopilot,
     log: (cat, msg) => { try { logDebugger(cat, msg); } catch (_) {} }
   });
   void ferramentasBrowserContext;
@@ -6432,7 +6837,108 @@ function setupIPC() {
   }
   // Ícone da barra: clique esquerdo mostra a coluna se oculta e oculta se visível.
   hostIPC.handle('copilot-coluna-clique', async (_e, botao) => {
-    if (!colunaCopilotLigada() || botao !== 'esquerdo') return false;
+    if (!colunaCopilotLigada()) return false;
+    if (botao === 'direito' && copilotWebIntegrado) {
+      const mostrarFalha = () => mostrarAviso('Não foi possível concluir a ação de contexto.', 'erro');
+      Menu.buildFromTemplate([{
+        label: 'Usar aba atual no Copilot',
+        enabled: configManager.loadConfig().copilotContextoPermitido === true,
+        click: () => { void exportadorContexto.exportar({ escopo: 'ativa' }).catch(mostrarFalha); }
+      }, {
+        type: 'checkbox',
+        label: consentimentoCopilotRef ? 'Permitir que o Copilot use o conteúdo das abas' : 'Permitir contexto das abas',
+        checked: consentimentoCopilotRef ? consentimentoCopilotRef.aceito() : configManager.loadConfig().copilotContextoPermitido === true,
+        click: ({ checked }) => {
+          // Com a ponte ligada, o menu, o switch de Configurações e o cartão gravam o mesmo consentimento.
+          if (consentimentoCopilotRef) { void consentimentoCopilotRef.definir(checked).then(ok => { if (!ok) mostrarFalha(); }, mostrarFalha); return; }
+          const salvo = configManager.saveConfig({ ...configManager.loadConfig(), copilotContextoPermitido: checked });
+          if (!salvo) { mostrarFalha(); return; }
+          void configManager.flush().catch(mostrarFalha);
+        }
+      }, ...(diagnosticoPonteCr ? [{
+        label: 'Diagnóstico da ponte do Copilot',
+        click: () => {
+          // Só nomes de API e contagens: serve para ver o que a página do Copilot pediu e o que ficou sem resposta.
+          const d = diagnosticoPonteCr();
+          const estados = ['sem decisão', 'permitido', 'não permitido'];
+          const semResposta = d.chamadas.filter(c => c.erro > 0);
+          void dialog.showMessageBox(mainWindow, {
+            type: 'info', title: 'Diagnóstico da ponte do Copilot', message: 'Ponte entre o Copilot e o SuperPROC', buttons: ['Fechar'],
+            detail: [
+              'Consentimento: ' + (estados[d.consentimento] || 'sem decisão'),
+              'Portas abertas pela página: ' + (d.portas.length ? d.portas.join(', ') : 'nenhuma'),
+              'Eventos assinados: ' + (d.assinaturas.length ? d.assinaturas.length : 'nenhum'),
+              'Chamadas atendidas: ' + d.chamadas.reduce((s, c) => s + c.ok, 0),
+              'Pedidos de autenticação aninhada (respondidos como indisponível): ' + (d.autenticacaoAninhada.length ? d.autenticacaoAninhada.map(a => a.metodo + ' ×' + a.vezes).join(', ') : 'nenhum'),
+              '',
+              d.chamadas.length ? 'Chamadas por API (atendidas / recusadas):' : 'A página ainda não chamou a ponte nesta sessão.',
+              ...d.chamadas.slice(0, 40).map(c => '  ' + c.api.replace(/^chrome\.(?:copilotBridgePrivate\.)?/, '') + ': ' + c.ok + ' / ' + c.erro),
+              ...(semResposta.length ? ['', 'APIs pedidas e não atendidas: ' + semResposta.length] : [])
+            ].join('\n')
+          }).catch(mostrarFalha);
+        }
+      }] : []), {
+        label: 'Testar leitura local da aba',
+        enabled: configManager.loadConfig().copilotContextoPermitido === true,
+        click: () => { void exportadorContexto.exportar({ testarLeitura: true }).catch(mostrarFalha); }
+      }, {
+        label: 'Diagnóstico do contexto',
+        click: () => {
+          void exportadorContexto.diagnosticar().then(estado => dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Diagnóstico do contexto',
+            message: 'Contexto das abas no SuperPROC',
+            detail: [
+              estado.permitido ? 'Permissão local ativa' : 'Permissão local desativada',
+              estado.abaIdentificada
+                ? (estado.abaLegivel ? 'Aba ativa identificada e elegível para leitura' : 'Aba ativa identificada, mas indisponível para leitura')
+                : 'Nenhuma aba ativa identificada',
+              estado.conversaDisponivel ? 'Endereço do chat reconhecido' : 'Abra uma conversa do Copilot para preparar contexto',
+              estado.ultimaTentativa
+                ? [estado.ultimaTentativa.etapa, estado.ultimaTentativa.mensagem].filter(Boolean).join(' — ')
+                : 'Nenhuma tentativa nesta sessão',
+              'A sua mensagem é enviada pelo próprio chat após a revisão.'
+            ].join('\n'),
+            buttons: ['Fechar']
+          })).catch(mostrarFalha);
+        }
+      }, {
+        label: 'Consultar políticas exportadas do Edge…',
+        click: async () => {
+          try {
+            const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+              title: 'Selecionar exportação de edge://policy',
+              properties: ['openFile'],
+              filters: [{ name: 'Exportação JSON', extensions: ['json'] }]
+            });
+            if (canceled || !filePaths[0]) return;
+            const arquivo = await fs.promises.open(filePaths[0], 'r');
+            let texto;
+            try {
+              const info = await arquivo.stat();
+              if (!info.isFile() || info.size > 1024 * 1024) throw new Error('Exportação inválida ou acima de 1 MB.');
+              const buffer = Buffer.alloc(info.size);
+              const { bytesRead } = await arquivo.read(buffer);
+              texto = buffer.toString('utf8', 0, bytesRead);
+            } finally {
+              await arquivo.close();
+            }
+            const { resumirPoliticasEdge } = require('./copilot-politicas-edge');
+            await dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Políticas exportadas do Edge',
+              message: 'Políticas do Edge relacionadas ao Copilot',
+              detail: resumirPoliticasEdge(texto) + '\n\nConsulta à exportação selecionada. A permissão do SuperPROC é configurada no menu do Copilot.',
+              buttons: ['Fechar']
+            });
+          } catch (_) {
+            mostrarAviso('Não foi possível ler o JSON exportado por edge://policy.', 'erro');
+          }
+        }
+      }]).popup({ window: mainWindow });
+      return true;
+    }
+    if (botao !== 'esquerdo') return false;
     colunaCopilotOculta = !colunaCopilotOculta;
     updateLayoutBounds(); enviarEstadoColuna(true).catch(() => {});
     logDebugger('COPILOT_COLUNA', 'Clique no ícone: coluna ' + (colunaCopilotOculta ? 'oculta' : 'visível'));
@@ -6472,7 +6978,7 @@ function setupIPC() {
       return grupo.map(t => t.view && t.view.webContents).filter(w => w && !w.isDestroyed());
     },
     getAlvosPdf: (origem) => {
-      const gerenciados = require('./saneador-pdf').resolveManagedTargets(tabs, origem);
+      const gerenciados = require('./abas-gerenciadas').resolveManagedTargets(tabs, origem);
       if (gerenciados.length) return gerenciados;
       const ativa = tabs.find(t => t.id === activeTabId);
       return ativa && ativa.view && ativa.view.webContents ? [ativa.view.webContents] : [];
@@ -6988,6 +7494,7 @@ app.whenReady().then(async () => {
   setupIPC();
   setupDownloadManager();
   printToPdf.registerSession(session.defaultSession);
+  if (V2_SMOKE) prepararExtensoesDoTeste();
   await loadInstalledExtensions();
   createMainWindow();
   const pdfStartupConfig = configManager.loadConfig();

@@ -38,13 +38,13 @@ function origemAceita(url) {
   try { const u = new URL(url); u.search = ''; u.hash = ''; return u.href === urlDaPagina(); } catch (_) { return false; }
 }
 
-function criarShell({ broker, perguntar, sintetico = false, cenario = 'acesso', graph = null, graphPendente = false, usarHabitual = () => false, prazoMs = 10000, limites, agora, log = () => {}, gerarCanal }) {
+function criarShell({ broker, perguntar, contextoPermitido, sintetico = false, cenario = 'acesso', graph = null, graphPendente = false, usarHabitual = () => false, prazoMs = 10000, limites, agora, log = () => {}, gerarCanal }) {
   let canalVigente = null;
   const canalValido = (c) => {
-    if (typeof c !== 'string' || !canalVigente || c.length !== canalVigente.length) return false;
+    if (typeof c !== 'string' || !canalVigente || Buffer.byteLength(c) !== Buffer.byteLength(canalVigente)) return false;
     return crypto.timingSafeEqual(Buffer.from(c), Buffer.from(canalVigente));
   };
-  const browserContext = criarContextoAutorizado({ broker, perguntar, canalValido, limites, agora, log });
+  const browserContext = criarContextoAutorizado({ broker, perguntar, contextoPermitido, canalValido, limites, agora, log });
 
   const consumidorBase = P.criarConsumidorSintetico({ gerarCanal });
   const consumer = {
@@ -80,13 +80,24 @@ function criarShell({ broker, perguntar, sintetico = false, cenario = 'acesso', 
       try { await graph.account.entrar(); return { ok: true }; }
       catch (e) { return erro(e?.codigo || 'LOGIN_MICROSOFT_FALHOU', true); }
     }
+    if (p.tipo === 'politica-contexto') return consumidorBase.consultarPolitica();
     if (p.tipo === 'listar') return consumidorBase.listarAbas();
     if (p.tipo === 'ler') return consumidorBase.lerAba(p.tabId, p.maxCaracteres);
     if (graph && p.tipo === 'enviar') {
       if (typeof p.texto !== 'string' || !p.texto.trim() || p.texto.length > 20000) return erro('PEDIDO_INVALIDO');
+      let tabId = p.tabId;
+      if (p.contextoAbaAtiva === true) {
+        if (tabId) return erro('PEDIDO_INVALIDO');
+        const politica = consumidorBase.consultarPolitica();
+        if (!politica.ok) return politica;
+        if (!politica.permitido) return erro('CONTEXTO_DESATIVADO');
+        const ativa = await broker.getActiveTab();
+        if (!ativa?.id) return erro('SEM_ABA_ATIVA', true);
+        tabId = ativa.id;
+      }
       let contexto;
-      if (p.tabId) {
-        const leitura = await consumidorBase.lerAba(p.tabId);
+      if (tabId) {
+        const leitura = await consumidorBase.lerAba(tabId);
         if (!leitura.ok) return leitura;
         contexto = leitura.texto;
       }

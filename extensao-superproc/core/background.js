@@ -1,7 +1,7 @@
 // Transporte da extensão Chrome; o Browser SuperPROC usa a ponte nativa equivalente.
-const jobs = new Map();
+// Sem integração com IA: tudo que envolve IA é do navegador SuperPROC.
 let storageTail = Promise.resolve();
-const storageKeys = new Set(['superproc_modules_enabled','superproc_custom_settings','superproc_local_data','superproc_automations_v1','superproc_local_data_aplicar']);
+const storageKeys = new Set(['superproc_modules_enabled','superproc_custom_settings','superproc_local_data','superproc_local_data_aplicar']);
 const validId = value => typeof value === 'string' && /^[a-z][a-z0-9_]{0,100}$/i.test(value) && !['constructor','prototype','__proto__'].includes(value);
 function storageCall(method, ...args) {
     return new Promise((resolve,reject) => chrome.storage.local[method](...args,value => {
@@ -45,33 +45,3 @@ if (chrome.webRequest && chrome.webRequest.onBeforeRequest) {
   chrome.webRequest.onCompleted.addListener(d => avisarLocalizadores('atualizados', d, d.statusCode < 400), filtro);
   chrome.webRequest.onErrorOccurred.addListener(d => avisarLocalizadores('atualizados', d, false), filtro);
 }
-const allowed = url => { try { return new URL(url).hostname.endsWith('.jus.br'); } catch { return false; } };
-chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-    if (msg?.type === 'superproc:pulse') { reply({ ok: true }); return; }
-    if (msg?.type === 'superproc:cancel' && sender.tab && allowed(sender.url)) {
-        const job = jobs.get(sender.tab.id);
-        if (job) chrome.scripting.executeScript({ target: { tabId: job.tabId }, func: () => window.SuperprocCopilot?.cancel() }).catch(() => {});
-        reply({ ok: true }); return;
-    }
-    if (msg?.type !== 'superproc:copilot' || !sender.tab || !allowed(sender.url)) return;
-    if (jobs.has(sender.tab.id)) { reply({ error: 'Já há um saneamento nesta aba.' }); return; }
-    const job = {}; jobs.set(sender.tab.id, job);
-    (async () => {
-        if (!msg.payload?.files?.length || msg.payload.files.length > 100) throw new Error('Lista de documentos inválida.');
-        // Janela dedicada visível: permite autenticação e conferência da menção.
-        const win = await chrome.windows.create({ url: 'https://m365.cloud.microsoft/chat?auth=2', type: 'popup', width: 1100, height: 850 });
-        job.tabId = win.tabs[0].id;
-        const end = Date.now() + 120000;
-        while (Date.now() < end) {
-            const tab = await chrome.tabs.get(job.tabId);
-            const host = new URL(tab.url || 'https://invalid').hostname;
-            if (tab.status === 'complete' && ['m365.cloud.microsoft', 'copilot.cloud.microsoft'].includes(host)) break;
-            await new Promise(r => setTimeout(r, 800));
-        }
-        await chrome.scripting.executeScript({ target: { tabId: job.tabId }, files: ['modules/automacoes/copilot_worker.js'], world: 'MAIN' });
-        const result = await chrome.scripting.executeScript({ target: { tabId: job.tabId }, world: 'MAIN', func: payload => window.SuperprocCopilot.run(payload), args: [msg.payload] });
-        reply({ text: result[0].result });
-        // Mantém a conversa acessível; não fecha outras abas do usuário.
-    })().catch(error => reply({ error: error.message })).finally(() => jobs.delete(sender.tab.id));
-    return true;
-});

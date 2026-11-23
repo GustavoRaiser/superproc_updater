@@ -3,13 +3,13 @@
  *
  * Como funciona:
  *  - O módulo declara `feito: { descricao }` no registry e este arquivo desenha o controle dentro do card dele.
- *  - A lista de localizadores vem do catálogo capturado pelo Smart Localizadores (AUTOMATION_CATALOG_KEY):
+ *  - A lista de localizadores vem do catálogo capturado pelo Smart Localizadores (CATALOGO_LOCALIZADORES_KEY):
  *    é preciso abrir uma lista de processos no eproc ao menos uma vez para ela existir.
  *  - Não há localizador padrão: enquanto nada for escolhido, o botão Feito fica desativado na capa do processo.
  *  - A escolha é gravada só para o módulo do card: Storage.setModuleSettings(<id>, { feito: { id, name } | null }).
  */
 import { Storage } from '../core/storage.js';
-import { AUTOMATION_CATALOG_KEY } from '../core/automations.js';
+import { CATALOGO_LOCALIZADORES_KEY } from '../core/catalogo_localizadores.js';
 
 const PLACEHOLDER = 'Escolher localizador…';
 
@@ -18,7 +18,7 @@ export async function renderFeito(card, mod, moduloAtivo = true) {
     let atual = config.feito && /^\d+$/.test(String(config.feito.id)) ? { id: String(config.feito.id), name: String(config.feito.name || '') } : null;
     let catalogos = [];
     try {
-        catalogos = Object.entries((await chrome.storage.local.get(AUTOMATION_CATALOG_KEY))[AUTOMATION_CATALOG_KEY] || {})
+        catalogos = Object.entries((await chrome.storage.local.get(CATALOGO_LOCALIZADORES_KEY))[CATALOGO_LOCALIZADORES_KEY] || {})
             .sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
     } catch (erro) { console.warn('[SuperPROC] Catálogo de localizadores indisponível:', erro); }
 

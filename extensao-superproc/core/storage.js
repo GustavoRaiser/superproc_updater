@@ -4,11 +4,9 @@
  * além de exportação e importação completa de perfis entre máquinas.
  */
 
-import { validateAutomation } from './automations.js';
 const STORAGE_KEY_MODULES = 'superproc_modules_enabled';
 const STORAGE_KEY_SETTINGS = 'superproc_custom_settings';
 const STORAGE_KEY_LOCAL_DATA = 'superproc_local_data';
-const STORAGE_KEY_AUTOMATIONS = 'superproc_automations_v1';
 // Marca que identifica um arquivo de perfil do SuperPROC Navegador (arquivos sem ela são recusados na importação).
 export const PERFIL_MARCA = 'superproc-navegador/perfil';
 export const PERFIL_FORMATO = 1;
@@ -86,12 +84,12 @@ export const Storage = {
     setAllModules:map=>mutate('set',{[STORAGE_KEY_MODULES]:map}),
     async getModuleSettings(id){return (await read(STORAGE_KEY_SETTINGS))[id] || {};},
     setModuleSettings:(id,value)=>mutate('settings',{id,value}),
-    // Perfil = módulos ligados, configurações dos módulos, dados de tela (copiados das páginas do eproc) e automações.
+    // Perfil = módulos ligados, configurações dos módulos e dados de tela (copiados das páginas do eproc).
     async exportProfile(){
         return {
             app: 'SuperPROC', marca: PERFIL_MARCA, formato: PERFIL_FORMATO, exportedAt: new Date().toISOString(),
             modulesEnabled: await read(STORAGE_KEY_MODULES), modulesSettings: await read(STORAGE_KEY_SETTINGS),
-            localData: await read(STORAGE_KEY_LOCAL_DATA), automations: await read(STORAGE_KEY_AUTOMATIONS, [])
+            localData: await read(STORAGE_KEY_LOCAL_DATA)
         };
     },
     // Valida (marca, formato, tipos e chaves) e grava; os dados de tela são aplicados nas páginas do eproc na próxima abertura.
@@ -100,15 +98,13 @@ export const Storage = {
         let p; try { p = typeof input === 'string' ? JSON.parse(input) : input; } catch { throw Error('Arquivo não é um perfil do SuperPROC Navegador.'); }
         if (!objetoSimples(p) || p.marca !== PERFIL_MARCA) throw Error('Arquivo não é um perfil do SuperPROC Navegador.');
         if (!Number.isInteger(p.formato) || p.formato < 1 || p.formato > PERFIL_FORMATO) throw Error('Perfil de uma versão não suportada.');
-        const modulesEnabled = p.modulesEnabled ?? {}, modulesSettings = p.modulesSettings ?? {}, localData = p.localData ?? {}, automations = p.automations ?? [];
+        const modulesEnabled = p.modulesEnabled ?? {}, modulesSettings = p.modulesSettings ?? {}, localData = p.localData ?? {};
         if (!objetoSimples(modulesEnabled) || Object.entries(modulesEnabled).some(([id, on]) => !ID_VALIDO.test(id) || typeof on !== 'boolean')) throw Error('Perfil inválido: módulos.');
         if (!objetoSimples(modulesSettings) || Object.entries(modulesSettings).some(([id, v]) => !ID_VALIDO.test(id) || !objetoSimples(v))) throw Error('Perfil inválido: configurações.');
         if (!objetoSimples(localData)) throw Error('Perfil inválido: dados.');
-        if (!Array.isArray(automations) || automations.length > 100) throw Error('Perfil inválido: automações.');
         const dados = Object.fromEntries(Object.entries(localData).filter(([key]) => RELEVANT_LOCAL_STORAGE_KEYS.includes(key)));
         const payload = {
             [STORAGE_KEY_MODULES]: modulesEnabled, [STORAGE_KEY_SETTINGS]: modulesSettings, [STORAGE_KEY_LOCAL_DATA]: dados,
-            [STORAGE_KEY_AUTOMATIONS]: automations.map(validateAutomation),
             [STORAGE_KEY_IMPORT_STAMP]: crypto.randomUUID()
         };
         await mutate('set', payload);

@@ -80,6 +80,9 @@ export default {
 
                 .quick-loc-item { width: 100%; height: 28px; margin-bottom: 2px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; box-sizing: border-box; cursor: pointer !important; user-select: none; text-decoration: none !important; }
                 .quick-loc-item:hover { background-color: #f1f3f5; border-color: #ced4da; text-decoration: none !important; }
+                .quick-loc-row { display: flex; align-items: baseline; gap: 4px; }
+                .quick-loc-row .quick-loc-item { flex: 1; min-width: 0; }
+                .quick-loc-mover { max-width: 70px; font: inherit; }
                 .quick-loc-item:focus-visible { outline: 2px solid #0056b3; outline-offset: -2px; }
                 .quick-loc-item.dragging { opacity: 0.4; }
                 .quick-loc-item.drag-over-top { border-top: 2px solid #0056b3 !important; }
@@ -183,8 +186,49 @@ export default {
                 const esquerdaMax = window.scrollX + document.documentElement.clientWidth - largura - 10;
                 flyout.style.top = (rect.bottom + window.scrollY + 8) + 'px';
                 flyout.style.left = Math.max(window.scrollX + 10, Math.min(rect.right + window.scrollX - largura, esquerdaMax)) + 'px';
+                // A base do painel fica dentro da janela; senão a rolagem (inclusive a do arraste) não alcança o fim da lista.
+                flyout.style.maxHeight = Math.max(200, document.documentElement.clientHeight - rect.bottom - 16) + 'px';
             }
             reposicionarFlyout = atualizarPosicao;
+
+            // Rolagem durante o arraste: a roda do mouse não funciona enquanto se arrasta, então perto da borda
+            // de cima ou de baixo do painel (área visível) a lista rola sozinha até o grupo de destino.
+            let rolagemArraste = 0, quadroRolagem = null;
+            const passoRolagem = () => {
+                if (!rolagemArraste) { quadroRolagem = null; return; }
+                flyout.scrollTop += rolagemArraste;
+                quadroRolagem = requestAnimationFrame(passoRolagem);
+            };
+            const pararRolagemArraste = () => { rolagemArraste = 0; };
+            // O localizador é um link (<a href>): sem isto o Chromium trata o arraste como link e, ao soltar, abre uma aba
+            // em vez de entregar o drop ao grupo. Em todo o painel o arraste interno vale como "mover" e nunca navega.
+            flyout.addEventListener('dragover', (e) => {
+                if (!draggedItemNome && !draggedGrupoNome) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            }, true);
+            flyout.addEventListener('drop', (e) => {
+                if (draggedItemNome || draggedGrupoNome) e.preventDefault();
+                arrasteAtivo = false;
+            }, true);
+            flyout.addEventListener('dragover', (e) => {
+                if (!draggedItemNome && !draggedGrupoNome) return;
+                const r = flyout.getBoundingClientRect();
+                const topo = Math.max(r.top, 0), base = Math.min(r.bottom, document.documentElement.clientHeight);
+                const zona = Math.min(60, (base - topo) / 4);
+                if (e.clientY < topo + zona) rolagemArraste = -Math.ceil(((topo + zona - e.clientY) / zona) * 18);
+                else if (e.clientY > base - zona) rolagemArraste = Math.ceil(((e.clientY - (base - zona)) / zona) * 18);
+                else rolagemArraste = 0;
+                if (rolagemArraste && !quadroRolagem) quadroRolagem = requestAnimationFrame(passoRolagem);
+            });
+            flyout.addEventListener('dragleave', (e) => { if (!flyout.contains(e.relatedTarget)) pararRolagemArraste(); });
+            flyout.addEventListener('drop', pararRolagemArraste);
+            document.addEventListener('dragend', () => {
+                pararRolagemArraste();
+                arrasteAtivo = false;
+                // Depois dos dragend dos elementos (que limpam o estado), aplica o redesenho adiado.
+                setTimeout(() => { if (redesenhoPendente && !arrasteAtivo) renderizarFlyout(...redesenhoPendente); }, 0);
+            }, true);
 
             btnOriginal.addEventListener('mouseenter', () => {
                 hoverTimer = setTimeout(() => { 
@@ -335,8 +379,16 @@ export default {
         let draggedItemNome = null; 
         let draggedGrupoNome = null;
 
+        // Redesenhar o painel durante um arraste remove o elemento arrastado e o Chromium cancela o drop (o item "volta").
+        // Isso acontecia quando a atualização em segundo plano (fetch da lista) terminava no meio do arraste. Enquanto
+        // houver arraste, o redesenho fica pendente e roda no dragend; o drop em si zera `arrasteAtivo` antes de mover.
+        let arrasteAtivo = false;
+        let redesenhoPendente = null;
         function renderizarFlyout(flyout, urlOriginal) {
+            if (arrasteAtivo) { redesenhoPendente = [flyout, urlOriginal]; return; }
+            redesenhoPendente = null;
             const elementos = prepararListaParaRender();
+            const destinos = [...new Set([...elementos.filter(e => e.tipo === 'HEADER').map(e => e.nome), 'Sem Grupo'])];
             const containerFlow = document.createElement('div');
             containerFlow.className = 'quick-locs-columns';
 
@@ -349,6 +401,11 @@ export default {
                 if (elem.tipo === 'HEADER') {
                     currentGroupWrapper = document.createElement('div');
                     currentGroupWrapper.className = 'quick-group-wrapper';
+                    currentGroupWrapper.addEventListener('drop', (e) => {
+                        if (!draggedItemNome || e.target.closest('.quick-loc-item')) return;
+                        e.preventDefault();
+                        moverItemParaGrupo(draggedItemNome, elem.nome, 0, flyout, urlOriginal);
+                    });
                     grupoAtual = { el: currentGroupWrapper, itens: [], avisoEl: null, totalEl: null, total: 0, altura: 0 };
                     grupos.push(grupoAtual);
                 }
@@ -371,7 +428,7 @@ export default {
                         hDiv.draggable = true;
                         hDiv.addEventListener('dragstart', (e) => { 
                             e.stopPropagation();
-                            draggedGrupoNome = elem.nome; 
+                            draggedGrupoNome = elem.nome; arrasteAtivo = true;
                             draggedItemNome = null; 
                             hDiv.classList.add('dragging-group'); 
                             e.dataTransfer.effectAllowed = 'move'; 
@@ -419,12 +476,6 @@ export default {
                     }
                     
                     hDiv.addEventListener('dragover', (e) => e.preventDefault());
-                    hDiv.addEventListener('drop', (e) => { 
-                        e.preventDefault(); 
-                        if (draggedItemNome) { 
-                            moverItemParaGrupo(draggedItemNome, elem.nome, 0, flyout, urlOriginal); 
-                        } 
-                    });
                     
                     wrapperDiv.appendChild(hDiv);
                 } else if (elem.tipo === 'EMPTY_NOTICE') {
@@ -433,12 +484,6 @@ export default {
                     eDiv.textContent = 'Arraste um localizador para cá';
                     
                     eDiv.addEventListener('dragover', (e) => e.preventDefault());
-                    eDiv.addEventListener('drop', (e) => { 
-                        e.preventDefault(); 
-                        if (draggedItemNome) { 
-                            moverItemParaGrupo(draggedItemNome, elem.grupo, 0, flyout, urlOriginal); 
-                        } 
-                    });
                     
                     wrapperDiv.appendChild(eDiv);
                     if (grupoAtual) grupoAtual.avisoEl = wrapperDiv;
@@ -457,10 +502,12 @@ export default {
 
                     itemDiv.addEventListener('dragstart', (e) => { 
                         e.stopPropagation();
-                        draggedItemNome = item.nomeCompleto; 
+                        draggedItemNome = item.nomeCompleto; arrasteAtivo = true;
                         draggedGrupoNome = null; 
-                        itemDiv.classList.add('dragging'); 
-                        e.dataTransfer.effectAllowed = 'move'; 
+                        itemDiv.classList.add('dragging');
+                        // Sem o endereço do link no arraste: soltar fora do painel não deve abrir aba.
+                        e.dataTransfer.clearData();
+                        e.dataTransfer.effectAllowed = 'move';
                         e.dataTransfer.setData('text/plain', item.nomeCompleto);
                     });
                     
@@ -504,6 +551,21 @@ export default {
                     });
                     
                     wrapperDiv.appendChild(itemDiv);
+                    if (destinos.length > 1) {
+                        wrapperDiv.className = 'quick-loc-row';
+                        const mover = document.createElement('select');
+                        mover.className = 'quick-loc-mover';
+                        mover.title = 'Mover para grupo';
+                        mover.setAttribute('aria-label', 'Mover ' + item.nomeCurto + ' para grupo');
+                        mover.add(new Option('Mover…', ''));
+                        for (const destino of destinos) {
+                            if (destino !== elem.grupo) mover.add(new Option(destino, destino));
+                        }
+                        mover.addEventListener('change', () => {
+                            if (mover.value) moverItemParaGrupo(item.nomeCompleto, mover.value, 0, flyout, urlOriginal);
+                        });
+                        wrapperDiv.appendChild(mover);
+                    }
                     if (grupoAtual) {
                         grupoAtual.itens.push({ el: wrapperDiv, texto: normalizarTexto(item.nomeCompleto), vazio: !!item.isEmpty, link: (item.link && !item.isEmpty) ? item.link : null });
                         grupoAtual.total += parseInt(String(item.qtdTexto).replace(/\D/g, ''), 10) || 0;

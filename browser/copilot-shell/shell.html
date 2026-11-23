@@ -19,7 +19,10 @@
     <p class="nota">Microsoft 365 Copilot API (prévia). O acesso depende da licença e das permissões da organização.</p>
     <button id="graph-reconectar" type="button">Entrar novamente</button>
     <button id="graph-listar" type="button">Selecionar uma aba para contexto</button>
-    <select id="graph-aba" aria-label="Aba para contexto"><option value="">Sem contexto de aba</option></select>
+    <select id="graph-aba" aria-label="Aba para contexto">
+      <option value="">Sem contexto de aba</option>
+      <option value="ativa">Aba ativa ao enviar</option>
+    </select>
     <label for="graph-pergunta">Mensagem</label>
     <textarea id="graph-pergunta" rows="4" maxlength="20000"></textarea>
     <button id="graph-enviar" type="button">Enviar</button>

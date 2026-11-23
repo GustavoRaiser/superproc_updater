@@ -2,7 +2,7 @@
 // Anexo do PDF da árvore ao Copilot (host). Chamado pelo atalho PDF (copilot-teclas.js). O PDF que está aberto no leitor pdf.js (árvore/documento) da aba ativa é lido em memória e
 // ANEXADO ao chat do Copilot da coluna do modo Integrada com Copilot, como se o arquivo tivesse sido salvo
 // no computador e anexado. Nada é gravado em disco. Só anexa: texto, instruções e Enter ficam com o usuário.
-// Reaproveita readPdf/stageFile (pdf-transfer.js) e o worker upload() do Saneador (copilot_worker.js).
+// Reaproveita readPdf/stageFile (pdf-transfer.js) e o worker upload() do Saneador (copilot-worker.js).
 // Dependências injetadas para testar sem Electron.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -50,7 +50,7 @@ function criarEnvioPdf({
   app, BrowserWindow, webContents, getMainWindow, getColunaAtiva, getColunaView, getAlvos, avisar: avisarBase = () => {}, log = () => {},
   readPdf = require('./pdf-transfer').readPdf, stageFile = require('./pdf-transfer').stageFile, releaseFile = require('./pdf-transfer').releaseFile,
   pdfGate = require('./v2-policy').pdfGate, esperaPdfMs = 3000,
-  lerWorker = () => fs.readFileSync(path.join(__dirname, '../extensao-superproc/modules/automacoes/copilot_worker.js'), 'utf8')
+  lerWorker = () => fs.readFileSync(path.join(__dirname, 'copilot-worker.js'), 'utf8')
 }) {
   let emAndamento = false;
 

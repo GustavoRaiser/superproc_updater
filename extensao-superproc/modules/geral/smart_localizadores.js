@@ -9,7 +9,7 @@
  *   O catálogo de localizadores usado no popup (botão Feito e automações) é capturado a partir desta lista.
  */
 
-import { captureAutomationCatalog } from '../../core/automations.js';
+import { capturarCatalogoLocalizadores } from '../../core/catalogo_localizadores.js';
 import { reconciliar, gravarOrigem, lerLocal, gravarLocal, aoMudarEspelho, urlOrganizador, GRUPO_OCULTOS } from '../../core/smartorg.js';
 export default {
     init(context) {
@@ -190,7 +190,7 @@ body.smartloc-dragging-mode, body.smartloc-dragging-mode * { cursor: default !im
         }
 
         function sincronizarComNativo() {
-            captureAutomationCatalog().catch(error => console.warn('[SuperPROC] Catálogo de automações:', error));
+            capturarCatalogoLocalizadores().catch(error => console.warn('[SuperPROC] Catálogo de localizadores:', error));
             listaDadosNativos = capturarDadosNativos();
             let { grupos, estrutura } = getEstrutura();
             if (!listaDadosNativos.length) return;

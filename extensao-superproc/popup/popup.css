@@ -552,7 +552,6 @@ input:checked + .slider:before {
 .profile-feedback.error {
     color: #dc2626;
 }
-.auto-manager{margin-top:12px;border-top:1px solid #d6e1ee;padding-top:12px}.auto-manager button,#automation-editor button{padding:5px 8px;border:1px solid #a0b9cd;border-radius:5px;background:white;color:#075582;cursor:pointer}.auto-manager-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.auto-card{border:1px solid #b8cadd;border-radius:6px;padding:10px;margin:8px 0;background:white}.auto-card p{font-size:11px;margin:5px 0;color:#52647c}.auto-card button{margin-right:5px}#automation-editor{border:1px solid #9fb6ce;border-radius:8px;padding:14px;width:400px;max-width:96vw;max-height:94vh;overflow:auto;margin:auto;background:#f8fafc;color:#173d58}#automation-editor::backdrop{background:#122b4b66}.auto-form label{display:flex;flex-direction:column;gap:4px;margin:8px 0;font-size:12px}.auto-form input,.auto-form select,.auto-form textarea{width:100%;border:1px solid #aec2d5;border-radius:4px;padding:6px;background:white}.auto-form textarea{min-height:60px}.auto-form fieldset{border:1px solid #c4d2e0;padding:8px;border-radius:4px;margin:10px 0}.auto-form legend{font-weight:600;font-size:12px}.auto-help{font-size:11px;color:#52647c}.auto-form [data-error]{color:#b42318;font-size:12px;margin:8px 0}
 
 /* ===== Atalho de teclado do módulo (Memorizar / Esquecer) e popovers ===== */
 .module-card { flex-wrap: wrap; }

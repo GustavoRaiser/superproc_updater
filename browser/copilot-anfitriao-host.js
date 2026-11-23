@@ -86,14 +86,16 @@ function criarProvedor({ getTabs, getActiveTabId, getJanela, perguntar, log = ()
       const r = await wc.executeJavaScriptInIsolatedWorld(MUNDO, [{ code: codigoRealce(texto) }]);
       return alvoAtual(alvo) && r === true;
     },
-    async lerPdf(alvo, { max }) {
+    async lerPdf(alvo, { max, paginas } = {}) {
+      const de = paginas && Number.isSafeInteger(paginas.de) && paginas.de > 0 ? paginas.de : 1;
+      const ate = paginas && Number.isSafeInteger(paginas.ate) && paginas.ate >= de ? paginas.ate : Number.MAX_SAFE_INTEGER;
       if (!alvoAtual(alvo)) return null;
       const frames = alvo._wc.mainFrame.framesInSubtree || [alvo._wc.mainFrame];
       // Somente o leitor pdf.js próprio. PDF Chromium e outros leitores não são presumidos compatíveis.
       for (const frame of frames) {
         let texto;
         try {
-          texto = await frame.executeJavaScript(`(async()=>{const doc=window.PDFViewerApplication?.pdfDocument;if(!doc)return null;let t='';for(let i=1;i<=doc.numPages&&t.length<${max};i++){const p=await doc.getPage(i);const c=await p.getTextContent();t+=c.items.map(x=>typeof x.str==='string'?x.str:'').join(' ')+'\\n';if(window.PDFViewerApplication?.pdfDocument!==doc)return null;}return t.slice(0,${max});})()`);
+          texto = await frame.executeJavaScript(`(async()=>{const doc=window.PDFViewerApplication?.pdfDocument;if(!doc)return null;let t='';for(let i=${de};i<=Math.min(doc.numPages,${ate})&&t.length<${max};i++){const p=await doc.getPage(i);const c=await p.getTextContent();t+=c.items.map(x=>typeof x.str==='string'?x.str:'').join(' ')+'\\n';if(window.PDFViewerApplication?.pdfDocument!==doc)return null;}return t.slice(0,${max});})()`);
         } catch (_) { continue; }
         if (typeof texto === 'string') return alvoAtual(alvo) ? texto : null;
       }

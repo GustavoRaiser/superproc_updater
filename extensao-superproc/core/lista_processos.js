@@ -1,4 +1,4 @@
-// Fonte comum da navegação rápida e da fila do Saneador.
+// Fonte da navegação rápida pela lista de processos.
 export const normalizeListText = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 export const LIST_KEY = 'eproc_lista_processos_capturados';
 export const LIST_NAME_KEY = 'eproc_nome_localizador_capturado';
@@ -29,12 +29,6 @@ export function isDoneRow(row, doneName) {
     const custom = doneName ? new Set([stripCheck(doneName), stripCheck(String(doneName).split(' - ')[0])].filter(Boolean)) : null;
     return [...nodes, cell].some(el => /^feito(?:\s*[✅✔☑✓]\ufe0f?)?$/.test(normalizeListText(el.textContent)) || (custom && custom.has(stripCheck(el.textContent))));
 }
-export function isTriagedRow(row) {
-    const cell = locatorCell(row);
-    if (!cell) return false;
-    return [...cell.querySelectorAll('span, a, button, .badge, [data-localizador]'), cell]
-        .some(el => normalizeListText(el.textContent) === 'triagemsaneador');
-}
 export function captureProcessList(doc = document, base = doc.baseURI, doneName) {
     const items = new Map();
     for (const anchor of doc.querySelectorAll('table a[href*="acao=processo_selecionar"]')) {
@@ -49,13 +43,12 @@ export function captureProcessList(doc = document, base = doc.baseURI, doneName)
         const row = anchor.closest('tr');
         const feitoKnown = !!row && !!locatorCell(row);
         const feito = feitoKnown && isDoneRow(row, doneName);
-        const triagemsaneador = feitoKnown && isTriagedRow(row);
         const cell = row && locatorCell(row);
         const localizadores = cell ? [...cell.querySelectorAll('span, a, button, .badge, [data-localizador]'), cell]
             .map(el => normalizeListText(el.textContent).replace(/\s*[✅✔☑✓]\ufe0f?\s*$/, '').trim()).filter(Boolean) : [];
         const existing = items.get(id);
-        if (existing) { existing.localizadores = [...new Set([...existing.localizadores, ...localizadores])]; existing.feito ||= feito; existing.triagemsaneador ||= triagemsaneador; existing.feitoKnown ||= feitoKnown; continue; }
-        items.set(id, { id, numero, url: url.href, feito, feitoKnown, triagemsaneador, localizadores });
+        if (existing) { existing.localizadores = [...new Set([...existing.localizadores, ...localizadores])]; existing.feito ||= feito; existing.feitoKnown ||= feitoKnown; continue; }
+        items.set(id, { id, numero, url: url.href, feito, feitoKnown, localizadores });
     }
     return [...items.values()];
 }

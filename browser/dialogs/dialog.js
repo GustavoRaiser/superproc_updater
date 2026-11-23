@@ -178,6 +178,236 @@ document.addEventListener('DOMContentLoaded', async () => {
       catch { chkSettingsCorretor.checked = !chkSettingsCorretor.checked; cacheStatus.textContent = 'Não foi possível salvar o Corretor ortográfico.'; }
     });
 
+    // Consentimento da ponte do Copilot: ligado só quando a pessoa já permitiu (estado 1).
+    const chkSettingsCopilot = document.getElementById('chk-settings-copilot-contexto');
+    chkSettingsCopilot.checked = settingsCfg.copilotConsentimentoEstado === 1;
+    chkSettingsCopilot.addEventListener('change', async () => {
+      try { await api.setCopilotContextoPermitido(chkSettingsCopilot.checked); }
+      catch { chkSettingsCopilot.checked = !chkSettingsCopilot.checked; cacheStatus.textContent = 'Não foi possível salvar a permissão do Copilot.'; }
+    });
+
+    // Configurações de IA avançadas: árvore grupo -> subgrupo -> política, montada a partir do catálogo do host (politicas-ia.js).
+    // A caixa de um ramo liga/desliga todas as caixas dentro dele (fica "meio marcada" quando só parte está ligada); busca e filtro
+    // escondem o que não casa; "detalhes" mostra nome da política, preferência do Edge, controle, presença na 158 e o que muda.
+    const caixaIaAvancada = document.getElementById('ia-avancada-lista');
+    if (caixaIaAvancada && api.getCopilotPoliticasIA) {
+      const el = (tag, classe, texto) => { const e = document.createElement(tag); if (classe) e.className = classe; if (texto != null) e.textContent = texto; return e; };
+      const semAcento = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+      const campoBusca = document.getElementById('ia-busca');
+      const campoFiltro = document.getElementById('ia-filtro');
+      const resumoIa = document.getElementById('ia-avancada-resumo');
+      const avisoVazio = document.getElementById('ia-avancada-vazio');
+      let folhas = []; // { it, raiz, chk | ta, texto }
+      let ramos = [];  // { raiz, chk, conta, folhas }
+      const erroIa = (msg) => { cacheStatus.textContent = msg; setTimeout(() => { if (cacheStatus.textContent === msg) cacheStatus.textContent = ''; }, 4000); };
+
+      const FILTROS = {
+        todas: () => true,
+        ativas: (it) => it.effect === 'ativo',
+        alteradas: (it) => (it.type === 'bool' ? it.value !== it.default : (it.value || []).length > 0),
+        restritivas: (it) => it.restrictive === true,
+        internas: (it) => it.origin === 'interna',
+        ausentes: (it) => it.inEdge158 === false
+      };
+
+      // Recalcula caixas dos ramos, contagens e o resumo a partir do valor atual de cada folha.
+      function atualizarEstado() {
+        for (const f of folhas) {
+          if (f.chk) f.chk.checked = f.it.value === true;
+          // esmaecida = permissiva desligada; em destaque = restritiva ligada (os dois casos fogem do padrão "tudo liberado")
+          f.raiz.classList.toggle('ia-desligada', f.it.type === 'bool' && !f.it.restrictive && f.it.value !== true);
+          f.raiz.classList.toggle('ia-restringe', f.it.restrictive === true && f.it.value === true);
+        }
+        // As contagens e a caixa do ramo consideram só as permissivas; as restritivas (que vêm desligadas) são contadas à parte.
+        const partes = (lista) => {
+          const caixas = lista.filter((f) => f.it.type === 'bool' && !f.it.restrictive);
+          const restr = lista.filter((f) => f.it.restrictive === true);
+          return { caixas, ligadas: caixas.filter((f) => f.it.value === true).length, restr, restrLigadas: restr.filter((f) => f.it.value === true).length, listas: lista.filter((f) => f.it.type !== 'bool') };
+        };
+        const textoRestr = (p) => (p.restr.length ? p.restr.length + (p.restr.length === 1 ? ' restritiva' : ' restritivas') + (p.restrLigadas ? ' (' + p.restrLigadas + (p.restrLigadas === 1 ? ' ligada)' : ' ligadas)') : '') : '');
+        for (const r of ramos) {
+          const p = partes(r.folhas);
+          if (r.chk) { r.chk.checked = p.caixas.length > 0 && p.ligadas === p.caixas.length; r.chk.indeterminate = p.ligadas > 0 && p.ligadas < p.caixas.length; }
+          r.conta.textContent = [p.caixas.length ? p.ligadas + ' de ' + p.caixas.length + ' ligadas' : '', textoRestr(p), p.listas.length ? p.listas.length + (p.listas.length === 1 ? ' lista' : ' listas') : ''].filter(Boolean).join(' · ');
+        }
+        const p = partes(folhas);
+        const preenchidas = p.listas.filter((f) => (f.it.value || []).length > 0).length;
+        resumoIa.textContent = [p.ligadas + ' de ' + p.caixas.length + ' ligadas', p.restrLigadas ? p.restrLigadas + (p.restrLigadas === 1 ? ' restritiva ligada' : ' restritivas ligadas') : '', preenchidas ? preenchidas + (preenchidas === 1 ? ' lista preenchida' : ' listas preenchidas') : ''].filter(Boolean).join(' · ');
+      }
+
+      // Esconde o que não casa com a busca e o filtro; com busca ou filtro ativos, abre os ramos que têm resultado.
+      function aplicarFiltro() {
+        const termo = semAcento(campoBusca.value.trim());
+        const passa = FILTROS[campoFiltro.value] || FILTROS.todas;
+        const restrito = !!termo || campoFiltro.value !== 'todas';
+        let visiveis = 0;
+        for (const f of folhas) { const ok = passa(f.it) && (!termo || f.texto.includes(termo)); f.raiz.hidden = !ok; if (ok) visiveis++; }
+        for (const r of ramos) { const tem = r.folhas.some((f) => !f.raiz.hidden); r.raiz.hidden = !tem; if (restrito && tem) r.raiz.open = true; }
+        avisoVazio.classList.toggle('hidden', visiveis > 0);
+      }
+
+      // Grava várias caixas com o mesmo valor numa gravação só (o ramo "demais" tem centenas); se falhar, nada muda.
+      async function gravarCaixas(lista, valor) {
+        const alvo = lista.filter((f) => f.it.type === 'bool' && f.it.value !== valor);
+        if (alvo.length) {
+          try {
+            if (alvo.length > 1 && api.setCopilotPoliticasIALote) { await api.setCopilotPoliticasIALote(alvo.map((f) => f.it.name), valor); for (const f of alvo) f.it.value = valor; }
+            else for (const f of alvo) f.it.value = await api.setCopilotPoliticaIA(f.it.name, valor);
+          } catch { erroIa('Não foi possível salvar as configurações de IA.'); }
+        }
+        atualizarEstado(); aplicarFiltro();
+      }
+
+      function criarRamo(titulo, classe, descricao, rotuloAcessivel) {
+        const raiz = el('details', 'ia-ramo ' + classe);
+        const sumario = el('summary');
+        const chk = el('input'); chk.type = 'checkbox'; chk.setAttribute('aria-label', 'Ligar ou desligar tudo em: ' + rotuloAcessivel);
+        const conta = el('span', 'ia-conta');
+        sumario.append(chk, el('span', 'ia-titulo', titulo), conta);
+        raiz.appendChild(sumario);
+        if (descricao) raiz.appendChild(el('p', 'ia-desc', descricao));
+        const ramo = { raiz, chk, conta, folhas: [] };
+        // só as permissivas: ligar uma restritiva é sempre uma escolha individual
+        chk.addEventListener('change', async () => { const valor = chk.checked; chk.disabled = true; try { await gravarCaixas(ramo.folhas.filter((f) => !f.it.restrictive), valor); } finally { chk.disabled = false; } });
+        ramos.push(ramo);
+        return ramo;
+      }
+
+      function criarFolha(it) {
+        const raiz = el('div', 'ia-folha');
+        const linha = el('div', 'ia-linha');
+        const folha = { it, raiz, texto: semAcento([it.name, it.label, it.control, it.feature, it.replacedBy, it.note, ...(it.prefs || [])].join(' ')) };
+        const id = 'ia-pol-' + it.name;
+        const rotulo = el('label');
+        if (it.type === 'bool') {
+          const chk = el('input'); chk.type = 'checkbox'; chk.id = id; chk.setAttribute('data-politica-ia', it.name);
+          chk.addEventListener('change', async () => {
+            const valor = chk.checked;
+            try { it.value = await api.setCopilotPoliticaIA(it.name, valor); } catch { erroIa('Não foi possível salvar a configuração de IA.'); }
+            atualizarEstado(); aplicarFiltro();
+          });
+          folha.chk = chk; rotulo.append(chk, el('span', 'ia-rotulo', it.label));
+        } else { rotulo.htmlFor = id; rotulo.append(el('span', 'ia-rotulo', it.label)); }
+        const meta = el('div', 'ia-meta');
+        meta.appendChild(el('code', 'ia-nome', it.name));
+        const marca = (classe, texto, dica) => { const m = el('span', 'ia-marca ' + classe, texto); m.title = dica; meta.appendChild(m); };
+        if (it.effect === 'ativo') marca('ia-ativo', 'muda o SuperPROC', 'Desligar muda o que o SuperPROC entrega ao Copilot.');
+        if (it.restrictive === true) marca('ia-restritiva', 'restritiva', 'Ligada, esta política tira ou bloqueia algo do navegador. Por isso vem desligada.');
+        if (it.origin === 'interna') marca('ia-interna', 'interna 158', 'Política interna, presente na msedge.dll 158 e fora da lista pública.');
+        if (it.inEdge158 === false) marca('ia-ausente', 'ausente na 158', 'O nome não existe na msedge.dll 158' + (it.replacedBy ? '; substituída por ' + it.replacedBy + '.' : '.'));
+        const botao = el('button', 'ia-info', 'detalhes'); botao.type = 'button'; botao.setAttribute('aria-expanded', 'false');
+        linha.append(rotulo, botao);
+        raiz.append(linha, meta);
+        if (it.type !== 'bool') {
+          const ta = el('textarea'); ta.id = id; ta.rows = 2; ta.spellcheck = false; ta.value = (it.value || []).join('\n'); ta.setAttribute('data-politica-ia', it.name);
+          ta.placeholder = it.curated === false ? 'um item por linha' : 'um site por linha (ex.: exemplo.jus.br)';
+          ta.addEventListener('change', async () => {
+            try { it.value = await api.setCopilotPoliticaIA(it.name, ta.value.split(/\r?\n/)); ta.value = it.value.join('\n'); }
+            catch { erroIa('Lista inválida (um item por linha, sem espaços; até 50 itens de 200 caracteres).'); }
+            atualizarEstado(); aplicarFiltro();
+          });
+          folha.ta = ta; raiz.append(ta);
+        }
+        let dl = null;
+        const montarDetalhes = () => {
+          dl = el('dl', 'ia-detalhes'); dl.hidden = true;
+          const par = (termo, valor, codigo) => { const dd = el('dd'); if (codigo) dd.appendChild(el('code', null, valor)); else dd.textContent = valor; dl.append(el('dt', null, termo), dd); };
+          const TIPOS = { BOOL: 'liga/desliga', INT: 'número inteiro', LIST: 'lista', STRING: 'texto' };
+          par('Política', it.name, true);
+          par('Preferência no Edge', (it.prefs || []).join(', ') || 'nenhuma encontrada na 158', (it.prefs || []).length > 0);
+          if (it.curated === false) par('Tipo no Edge', TIPOS[it.edgeType] || 'não identificado no estudo');
+          if (it.control) par('Controle em edge://settings', it.control + ' (pareamento do estudo)');
+          if (it.feature) par('Recurso conectado', it.feature, true);
+          par('No Edge 158', it.inEdge158 === false ? 'nome ausente da msedge.dll' + (it.replacedBy ? '; substituída por ' + it.replacedBy : '') : (it.origin === 'interna' ? 'presente, política interna' : 'presente, política pública'));
+          par('No SuperPROC', it.note || (it.effect === 'ativo' ? 'Muda o que o SuperPROC entrega ao Copilot.'
+            : it.restrictive === true ? 'Só informa o estado. Vem desligada porque, ligada, tira ou bloqueia algo do navegador; a caixa do grupo não mexe nela.'
+            : it.curated === false ? 'Só informa o estado: o Copilot consulta pela ferramenta de políticas' + (it.type === 'bool' && it.edgeType !== 'BOOL' ? '; o SuperPROC guarda só ligado/desligado.' : '.')
+            : 'Só informa o estado ao Copilot; nada mais muda.'));
+          raiz.appendChild(dl);
+        };
+        botao.addEventListener('click', () => { if (!dl) montarDetalhes(); dl.hidden = !dl.hidden; botao.setAttribute('aria-expanded', String(!dl.hidden)); botao.textContent = dl.hidden ? 'detalhes' : 'ocultar'; });
+        folhas.push(folha);
+        return folha;
+      }
+
+      function montarIa({ groups, items }) {
+        const abertos = new Set(ramos.filter((r) => r.raiz.open).map((r) => r.raiz.getAttribute('data-ramo')));
+        caixaIaAvancada.textContent = ''; folhas = []; ramos = [];
+        for (const g of groups) {
+          const doGrupo = items.filter((it) => it.groupId === g.id);
+          if (!doGrupo.length) continue;
+          const ramoG = criarRamo(g.title, 'ia-grupo', g.description, g.title);
+          ramoG.raiz.setAttribute('data-ramo', g.id);
+          let ramoS = null; let subAtual = null;
+          for (const it of doGrupo) {
+            if (it.subgroup !== subAtual) {
+              subAtual = it.subgroup;
+              ramoS = criarRamo(subAtual, 'ia-sub', '', g.title + ' / ' + subAtual);
+              ramoS.raiz.setAttribute('data-ramo', g.id + '/' + subAtual);
+              ramoG.raiz.appendChild(ramoS.raiz);
+            }
+            const folha = criarFolha(it);
+            ramoS.raiz.appendChild(folha.raiz); ramoS.folhas.push(folha); ramoG.folhas.push(folha);
+          }
+          caixaIaAvancada.appendChild(ramoG.raiz);
+        }
+        for (const r of ramos) {
+          if (abertos.has(r.raiz.getAttribute('data-ramo'))) r.raiz.open = true;
+          if (!r.folhas.some((f) => f.it.type === 'bool' && !f.it.restrictive)) { r.chk.remove(); r.chk = null; } // ramo só de listas ou de restritivas: sem caixa
+        }
+        atualizarEstado(); aplicarFiltro();
+      }
+      const carregarIa = () => api.getCopilotPoliticasIA().then(montarIa).catch(() => { caixaIaAvancada.textContent = 'Não foi possível carregar as configurações de IA.'; });
+
+      campoBusca.addEventListener('input', aplicarFiltro);
+      campoFiltro.addEventListener('change', aplicarFiltro);
+      document.getElementById('ia-expandir').addEventListener('click', () => { for (const r of ramos) r.raiz.open = true; });
+      document.getElementById('ia-recolher').addEventListener('click', () => { for (const r of ramos) r.raiz.open = false; });
+      // "Restaurar padrão": permissivas ligadas e restritivas desligadas; as listas ficam como estão.
+      const btnPadrao = document.getElementById('ia-restaurar-padrao');
+      btnPadrao.addEventListener('click', async () => {
+        btnPadrao.disabled = true;
+        try { await gravarCaixas(folhas.filter((f) => !f.it.restrictive), true); await gravarCaixas(folhas.filter((f) => f.it.restrictive), false); } finally { btnPadrao.disabled = false; }
+      });
+      carregarIa();
+      // A caixa "Permitir IA no dispositivo" grava duas políticas da árvore: recarrega os valores depois dela.
+      document.getElementById('chk-settings-copilot-ia-local')?.addEventListener('change', () => { setTimeout(carregarIa, 300); });
+    }
+
+    // Permissões do Copilot sobre o navegador (copilot-admin.json): uma caixa por chave.
+    if (api.getCopilotAdmin) {
+      api.getCopilotAdmin().then((pol) => {
+        document.querySelectorAll('[data-copilot-admin]').forEach((chk) => {
+          const chave = chk.getAttribute('data-copilot-admin');
+          chk.checked = pol[chave] === true;
+          chk.addEventListener('change', async () => {
+            try { await api.setCopilotAdmin(chave, chk.checked); }
+            catch { chk.checked = !chk.checked; cacheStatus.textContent = 'Não foi possível salvar a permissão do Copilot.'; }
+          });
+        });
+      }).catch(() => {});
+    }
+
+    // IA no dispositivo para o Copilot: ligada por padrão (só desligada se a pessoa desligar).
+    const chkSettingsIaLocal = document.getElementById('chk-settings-copilot-ia-local');
+    if (chkSettingsIaLocal) {
+      chkSettingsIaLocal.checked = settingsCfg.copilotIaNoDispositivo !== false;
+      chkSettingsIaLocal.addEventListener('change', async () => {
+        try { await api.setCopilotIaNoDispositivo(chkSettingsIaLocal.checked); }
+        catch { chkSettingsIaLocal.checked = !chkSettingsIaLocal.checked; cacheStatus.textContent = 'Não foi possível salvar a IA no dispositivo.'; }
+      });
+    }
+
+    // Texto completo para o Copilot (ignora o maxChars da página): desligado por padrão.
+    const chkTextoCompleto = document.getElementById('chk-settings-copilot-texto-completo');
+    if (chkTextoCompleto && api.setCopilotTextoCompleto) {
+      chkTextoCompleto.checked = settingsCfg.copilotIgnorarMaxCharsDaPagina === true;
+      chkTextoCompleto.addEventListener('change', async () => {
+        try { await api.setCopilotTextoCompleto(chkTextoCompleto.checked); }
+        catch { chkTextoCompleto.checked = !chkTextoCompleto.checked; cacheStatus.textContent = 'Não foi possível salvar a opção de texto completo.'; }
+      });
+    }
+
     const settingsDlPath = document.getElementById('settings-download-path');
     const btnSettingsChooseFolder = document.getElementById('btn-settings-choose-folder');
     const chkSettingsAutoDl = document.getElementById('chk-settings-auto-download');

@@ -27,9 +27,20 @@ function urlLegivel(url) {
   try { const u = new URL(url); return u.protocol === 'https:' || u.protocol === 'http:'; } catch { return false; }
 }
 
+// Itens do painel marcados "visíveis ao Copilot": além de http(s), a biblioteca local de leis (superproc-lei://, conteúdo público e do
+// próprio SuperPROC) também é legível.
+function urlLegivelNoCatalogo(url) {
+  if (urlLegivel(url)) return true;
+  try { const u = new URL(url); return u.protocol === 'superproc-lei:' && !!u.host; } catch { return false; }
+}
+
 // Endereço sem consulta nem fragmento: podem carregar sessão ou identificadores.
 function enderecoSeguro(url) {
-  try { const u = new URL(url); return u.origin + u.pathname; } catch { return ''; }
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'superproc-lei:') return u.protocol + '//' + u.host + u.pathname; // esquema não especial: origin vem "null"
+    return u.origin + u.pathname;
+  } catch { return ''; }
 }
 function origemDe(url) {
   try { const u = new URL(url); return u.origin === 'null' ? '' : u.origin; } catch { return ''; }
@@ -50,4 +61,4 @@ function numeroProcessoDeAba(url, titulo) {
   return m ? m[0] : null;
 }
 
-module.exports = { RE_PDF, RE_CNJ, ehIdOpaco, validarIds, validarConsulta, urlLegivel, enderecoSeguro, origemDe, formatarCnj, numeroProcessoDeAba };
+module.exports = { RE_PDF, RE_CNJ, ehIdOpaco, validarIds, validarConsulta, urlLegivel, urlLegivelNoCatalogo, enderecoSeguro, origemDe, formatarCnj, numeroProcessoDeAba };

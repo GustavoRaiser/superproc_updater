@@ -34,7 +34,16 @@ function textoDaAba(aba) {
     if (aba.pdf.requiresOcr) return { texto: '', nota: 'PDF sem camada de texto (requer OCR): conteúdo não extraído.' };
     return { texto: aba.pdf.pages.map((p) => `#### Página ${p.page}\n${sanitizar(p.text)}`).join('\n\n'), nota: '' };
   }
-  return { texto: sanitizar(aba.content.visibleText), nota: '' };
+  // Quadros de mesma origem (ex.: o documento aberto na árvore do eproc) e PDFs embutidos seguem o texto da página.
+  const extras = [];
+  for (const q of (Array.isArray(aba.content.frames) ? aba.content.frames : [])) {
+    if (q && q.text) extras.push(`#### Quadro interno${q.title ? ': ' + linha(q.title) : ''}\n${sanitizar(q.text)}`);
+  }
+  for (const [i, p] of (Array.isArray(aba.embeddedPdfs) ? aba.embeddedPdfs : []).entries()) {
+    if (p.error || p.requiresOcr) extras.push(`#### PDF incorporado ${i + 1}\n(texto não extraído)`);
+    else extras.push(`#### PDF incorporado ${i + 1}\n` + p.pages.map((x) => `##### Página ${x.page}\n${sanitizar(x.text)}`).join('\n\n'));
+  }
+  return { texto: [sanitizar(aba.content.visibleText), ...extras].filter(Boolean).join('\n\n'), nota: '' };
 }
 
 function cabecalhoDaAba(aba, indice) {

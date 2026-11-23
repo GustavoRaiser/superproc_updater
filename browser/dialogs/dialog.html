@@ -70,6 +70,49 @@
         </div>
 
         <div class="settings-card">
+          <h3>✨ Copilot no SuperPROC</h3>
+          <div id="copilot-admin-lista">
+            <label><input type="checkbox" data-copilot-admin="leitura"> Ferramentas de leitura: listar abas, histórico e acesso rápido</label>
+            <label><input type="checkbox" data-copilot-admin="contexto"> Ler o texto das abas pelas ferramentas</label>
+            <label><input type="checkbox" data-copilot-admin="organizacao"> Abrir, trocar, recarregar e navegar entre abas</label>
+            <label><input type="checkbox" data-copilot-admin="destrutiva"> Fechar abas e apagar histórico (sempre pergunta antes)</label>
+            <label><input type="checkbox" data-copilot-admin="historico"> Busca no histórico pelo Copilot Chat</label>
+            <label><input type="checkbox" data-copilot-admin="linkExterno"> Abrir links no navegador do sistema</label>
+            <label><input type="checkbox" data-copilot-admin="mcp"> Servidor MCP local (ferramentas do SuperPROC para o Copilot)</label>
+            <label><input type="checkbox" data-copilot-admin="agentico"> Ações do modo agêntico (navegar, voltar/avançar, rolar), se o serviço as oferecer</label>
+            <label><input type="checkbox" data-copilot-admin="captura"> Imagem da aba ativa (captura de tela) para o Copilot Chat</label>
+            <label><input type="checkbox" data-copilot-admin="pipe"> Pipe local para a linha de comando (vale ao reiniciar)</label>
+            <p class="settings-desc">Permissões do Copilot sobre o navegador (arquivo copilot-admin.json do perfil). Vêm ligadas; fechar abas e apagar histórico sempre pedem a sua confirmação.</p>
+          </div>
+          <label><input type="checkbox" id="chk-settings-copilot-ia-local"> Permitir IA no dispositivo (modelo local) para o Copilot</label>
+          <p class="settings-desc">Equivale à política <code>GenAILocalFoundationalModelSettings</code> do Edge (0 = permitido). Vem ligado: o Copilot no SuperPROC recebe a autorização. O SuperPROC não altera políticas nem o modelo do Edge; este é o interruptor local que a ponte informa ao Copilot.</p>
+          <details id="ia-avancada">
+            <summary><span class="ia-botao">Configurações de IA avançadas</span> <span id="ia-avancada-resumo" class="ia-conta"></span></summary>
+            <p class="settings-desc">Cada linha espelha uma política do Edge 158. Os quatro primeiros grupos reúnem as de IA/Copilot; o último traz todas as outras, por categoria, com o nome em inglês como no Edge. Tudo vem liberado (listas vazias = sem restrição) e o Copilot sabe o estado de cada uma. As marcadas <span class="ia-marca ia-restritiva">restritiva</span> tiram ou bloqueiam algo quando ligadas e por isso vêm desligadas. A caixa de um grupo liga ou desliga tudo dentro dele, menos as restritivas. As marcadas <span class="ia-marca ia-ativo">muda o SuperPROC</span> alteram o que o navegador entrega ao Copilot; as demais só informam o estado. Em “detalhes” estão o nome da política, a preferência do Edge e o que muda.</p>
+            <div class="ia-barra">
+              <input type="search" id="ia-busca" placeholder="Buscar entre as 826 políticas: nome, descrição ou preferência…" aria-label="Buscar nas configurações de IA" spellcheck="false">
+              <select id="ia-filtro" aria-label="Filtrar as configurações de IA">
+                <option value="todas">Todas</option>
+                <option value="ativas">Que mudam o SuperPROC</option>
+                <option value="alteradas">Diferentes do padrão</option>
+                <option value="restritivas">Restritivas (vêm desligadas)</option>
+                <option value="internas">Internas do Edge 158</option>
+                <option value="ausentes">Ausentes do Edge 158 (legadas)</option>
+              </select>
+              <button type="button" class="btn btn-secondary" id="ia-expandir">Expandir tudo</button>
+              <button type="button" class="btn btn-secondary" id="ia-recolher">Recolher tudo</button>
+              <button type="button" class="btn btn-secondary" id="ia-restaurar-padrao" title="Liga todas as caixas, menos as restritivas, que voltam a ficar desligadas. As listas não são alteradas.">Restaurar padrão</button>
+            </div>
+            <div id="ia-avancada-lista"></div>
+            <p class="settings-desc hidden" id="ia-avancada-vazio">Nenhuma configuração corresponde à busca ou ao filtro.</p>
+          </details>
+          <label><input type="checkbox" id="chk-settings-copilot-texto-completo"> Enviar o texto completo das abas, mesmo quando o Copilot pedir menos</label>
+          <p class="settings-desc">O SuperPROC entrega até 10 milhões de caracteres por aba (PDFs grandes inclusos). Desligado, vale o tamanho que o próprio Copilot pede, como no Edge. Ligue se o texto de um processo grande chegar cortado; se o Copilot passar a falhar ao ler a aba, desligue.</p>
+          <label><input type="checkbox" id="chk-settings-copilot-contexto"> Permitir que o Copilot use o conteúdo do navegador</label>
+          <p class="settings-desc">Vem ligado. O Copilot pode consultar a aba atual e as abas abertas para responder, e os atalhos de contexto (Ctrl+Shift+K e Ctrl+Shift+J) ficam disponíveis. O texto das abas vai para o serviço Copilot da Microsoft. Desligue para que nada das abas seja entregue.</p>
+        </div>
+
+        <div class="settings-card">
           <h3>🧹 Dados & Desempenho</h3>
           <div class="data-actions">
             <button class="btn btn-danger" id="btn-settings-clear-cache" data-popover="Limpa o cache de navegação dos sites. Mantém logins, preferências e extensões.">Limpar Cache</button>

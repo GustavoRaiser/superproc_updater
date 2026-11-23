@@ -44,6 +44,29 @@ function resumirNavegacao(url) {
   } catch { return null; }
 }
 
+// Resumo de uma navegação de janela de login para diagnóstico: domínio e caminho (identificadores mascarados), se o
+// retorno trouxe código de autorização e o NOME do erro OAuth. Nunca valores de código, token, estado ou descrição.
+const RE_GUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const RE_NOME_ERRO = /^[A-Za-z0-9_.]{1,60}$/;
+function resumirRetorno(url) {
+  const saida = { rota: null, temCodigo: false, temToken: false, erro: null, suberro: null };
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return saida;
+    saida.rota = (u.hostname.toLowerCase() + u.pathname.replace(RE_GUID, '<id>')).slice(0, 140);
+    for (const bruto of [u.search.replace(/^\?/, ''), u.hash.replace(/^#/, '')]) {
+      if (!bruto) continue;
+      const p = new URLSearchParams(bruto);
+      if (p.has('code')) saida.temCodigo = true;
+      if (p.has('id_token') || p.has('access_token')) saida.temToken = true;
+      const erro = p.get('error'), suberro = p.get('error_subcode');
+      if (erro) saida.erro = RE_NOME_ERRO.test(erro) ? erro : '<omitido>';
+      if (suberro) saida.suberro = RE_NOME_ERRO.test(suberro) ? suberro : '<omitido>';
+    }
+  } catch (_) { /* endereço inválido: resumo vazio */ }
+  return saida;
+}
+
 // Navegação principal da coluna.
 //   tipo 'navigate' (clique/redirecionamento da página) ou 'redirect' (redirecionamento do servidor)
 // Retorna 'permitir' | 'abrir-aba' (link externo vira aba normal do SuperPROC) | 'bloquear'.
@@ -85,7 +108,7 @@ function classificarTecla(input) {
   return 'bloquear';                                        // Ctrl+W/T/N/Tab/F/P/S/L/+/-/0...
 }
 
-function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, getMainWindow, abrirComoAba = () => {}, log = () => {}, url = URL_COPILOT, preload = null, fallbackUrl = null, diagnosticoNavegacao = false }) {
+function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, getMainWindow, abrirComoAba = () => {}, log = () => {}, url = URL_COPILOT, preload = null, fallbackUrl = null, diagnosticoNavegacao = false, removerContornoFoco = true, observarColuna, observarJanela = null, observarJanelaEstado = null, observarPagina = null, resolverUrlInicial = null }) {
   let view = null;
   let anexada = false;
   let retomadas = 0;
@@ -100,6 +123,7 @@ function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, g
     });
     const wc = view.webContents;
     colunas.add(wc);
+    observarColuna?.(wc);
     const ua = getUserAgent && getUserAgent();
     if (ua) wc.setUserAgent(ua);
     try { const p = wc.setVisualZoomLevelLimits(1, 1); if (p && typeof p.catch === 'function') p.catch(() => {}); } catch (_) {}
@@ -139,6 +163,52 @@ function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, g
       return { action: 'deny' };
     });
 
+    // Diagnóstico das janelas abertas pela página (login da Microsoft): por onde passaram, como terminaram e quando
+    // há uma em andamento (sinal usado para só instalar a ponte depois que o login terminar).
+    if (typeof observarJanela === 'function' || typeof observarJanelaEstado === 'function') wc.on('did-create-window', (janelaFilha) => {
+      const filho = janelaFilha && janelaFilha.webContents;
+      if (!filho) return;
+      if (typeof observarJanelaEstado === 'function') { try { observarJanelaEstado(true); } catch (_) { /* não afeta a coluna */ } }
+      const inicio = Date.now();
+      const resumo = { rotas: [], temCodigo: false, temToken: false, erro: null, suberro: null, status: null };
+      const ver = (destino, status) => {
+        const r = resumirRetorno(destino);
+        if (r.rota && resumo.rotas[resumo.rotas.length - 1] !== r.rota && resumo.rotas.length < 10) resumo.rotas.push(r.rota);
+        resumo.temCodigo = resumo.temCodigo || r.temCodigo; resumo.temToken = resumo.temToken || r.temToken;
+        resumo.erro = r.erro || resumo.erro; resumo.suberro = r.suberro || resumo.suberro;
+        if (Number.isInteger(status)) resumo.status = status;
+      };
+      filho.on('did-navigate', (_e, destino, status) => ver(destino, status));
+      filho.on('did-navigate-in-page', (_e, destino, principal) => { if (principal) ver(destino); });
+      filho.on('did-fail-load', (_e, codigo, _d, destino, principal) => { if (principal && codigo !== -3) { ver(destino); resumo.falhaDeCarga = codigo; } });
+      filho.once('destroyed', () => {
+        if (typeof observarJanelaEstado === 'function') { try { observarJanelaEstado(false); } catch (_) { /* não afeta a coluna */ } }
+        if (typeof observarJanela === 'function') { try { observarJanela({ ...resumo, duracaoMs: Date.now() - inicio }); } catch (_) { /* diagnóstico não afeta a coluna */ } }
+      });
+    });
+
+    // Diagnóstico da página (opcional): erros/avisos do console e recursos carregados (scripts, fetch/xhr), lidos do
+    // próprio documento em mundo isolado. Quem recebe é responsável por sanear e limitar antes de guardar.
+    if (typeof observarPagina === 'function') {
+      wc.on('console-message', (e) => {
+        const nivel = typeof e.level === 'string' ? e.level : ['debug', 'info', 'warning', 'error'][e.level] || String(e.level);
+        if (nivel !== 'error' && nivel !== 'warning') return;
+        try { observarPagina({ tipo: 'console', nivel, mensagem: String(e.message || ''), fonte: String(e.sourceId || '') }); } catch (_) { /* diagnóstico não afeta a coluna */ }
+      });
+      const LER = "(() => performance.getEntriesByType('resource').map(r => [r.initiatorType, String(r.name).split(/[?#]/)[0].slice(0, 220), r.responseStatus || 0]))()";
+      const lerRecursos = () => {
+        if (wc.isDestroyed()) return;
+        let origem = '';
+        try { origem = new URL(wc.getURL()).origin; } catch (_) { return; }
+        wc.executeJavaScriptInIsolatedWorld(1094, [{ code: LER }]).then((lista) => {
+          if (Array.isArray(lista)) { try { observarPagina({ tipo: 'recursos', origem, lista }); } catch (_) { /* idem */ } }
+        }).catch(() => {});
+      };
+      const relogio = setInterval(lerRecursos, 5000);
+      if (typeof relogio.unref === 'function') relogio.unref();
+      wc.once('destroyed', () => clearInterval(relogio));
+    }
+
     // Menu de contexto mínimo: só edição/cópia (nada de voltar, abrir em nova aba, inspecionar).
     wc.on('context-menu', (_e, p) => {
       const modelo = p.isEditable
@@ -153,16 +223,20 @@ function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, g
     });
     wc.on('did-finish-load', () => { retomadas = 0; });
     // Sem contorno de foco (amarelo) ao clicar no conteúdo; vale para a página principal e para iframes.
-    wc.on('did-frame-finish-load', () => {
+    if (removerContornoFoco) wc.on('did-frame-finish-load', () => {
       if (wc.isDestroyed() || !wc.mainFrame) return;
       for (const f of wc.mainFrame.framesInSubtree) {
         try { f.executeJavaScript(JS_SEM_CONTORNO_FOCO).catch(() => {}); } catch (_) {}
       }
     });
-    if (preload) wc.on('did-fail-load', (_e, codigo, _descricao, _u, principal) => {
+    if (preload && fallbackUrl) wc.on('did-fail-load', (_e, codigo, _descricao, _u, principal) => {
       if (!principal && codigo !== -3) { log('COPILOT_ANFITRIAO', 'Falha no iframe: ' + codigo); usarModoDireto(); }
     });
-    wc.loadURL(modoDireto && fallbackUrl ? fallbackUrl : url).catch(() => { usarModoDireto(); });
+    // resolverUrlInicial (opcional): decide a URL antes de carregar (ex.: pular a tela de entrada quando já há sessão Microsoft).
+    const carregar = (u) => { if (!wc.isDestroyed()) wc.loadURL(u).catch(() => { usarModoDireto(); }); };
+    if (modoDireto && fallbackUrl) carregar(fallbackUrl);
+    else if (typeof resolverUrlInicial === 'function') Promise.resolve().then(() => resolverUrlInicial(url)).then((u) => carregar(typeof u === 'string' && u ? u : url), () => carregar(url));
+    else carregar(url);
   }
 
   function remover() {
@@ -202,4 +276,4 @@ function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, g
   return { aplicar, recarregar, destruir, usarModoDireto, getView: () => (vivo() ? view : null), estaAnexada: () => anexada };
 }
 
-module.exports = { URL_COPILOT, ehColunaCopilot, decidirNavegacao, decidirJanelaNova, classificarTecla, resumirNavegacao, criarColunaCopilot };
+module.exports = { URL_COPILOT, ehColunaCopilot, decidirNavegacao, decidirJanelaNova, classificarTecla, resumirNavegacao, resumirRetorno, criarColunaCopilot };

@@ -41,6 +41,21 @@ const DEFAULT_CONFIG = {
   corretorOrtografico: true,
   modoAbertura: 'integrada',
   colunaCopilot: false,
+  // Chave "Copilot nos textos": ícone do Copilot ao lado do cursor nos campos de texto das abas (redator-linha.js). Ligado por
+  // padrão; mesmo ligado, só fica ativo enquanto a coluna do Copilot está ligada e visível.
+  copilotNosTextos: true,
+  copilotContextoPermitido: true,
+  // "IA no dispositivo" (equivale à política GenAILocalFoundationalModelSettings do Edge: 0 = permitido, 1 = não permitido; sem política vale o
+  // padrão = permitido): o Copilot no SuperPROC recebe a permissão por padrão. true = permitido.
+  copilotIaNoDispositivo: true,
+  // Texto completo para o Copilot: true = a ponte ignora o maxChars pedido pela página do Copilot e entrega até o teto do
+  // SuperPROC (10 milhões de caracteres). false (padrão) = respeita o pedido da página, como o Edge.
+  copilotIgnorarMaxCharsDaPagina: false,
+  // Políticas de IA espelhadas (ver copilot-shell/politicas-ia.js): só os valores que a pessoa mudou; o resto vale o padrão (ligado, listas vazias).
+  copilotPoliticasIA: {},
+  // Consentimento da ponte do Copilot (equivale a browser.underside_chat_consent do Edge): 1 aceito, 2 negado.
+  // Vem aceito: a leitura das abas pelo Copilot já funciona na instalação; a pessoa desliga em CFG → Configurações.
+  copilotConsentimentoEstado: 1,
   relacionadosEmPilha: true,
   copilotColunaPct: FAIXA_COPILOT.padrao,
   atalhoColarPdfCopilot: null, // atalho (code + modificadores) que anexa o PDF do leitor ao Copilot; sem padrão
@@ -130,6 +145,13 @@ function loadConfig(forceReload = false) {
       if (typeof parsed.colunaCopilot !== 'boolean') conf.colunaCopilot = colunaDoModoLegado(parsed.modoAbertura);
       conf.modoAbertura = normalizarModo(conf.modoAbertura);
       conf.colunaCopilot = conf.colunaCopilot === true;
+      if (typeof conf.copilotNosTextos !== 'boolean') conf.copilotNosTextos = true;
+      // Sem decisão gravada (perfil antigo ou estado 0), vale o padrão ligado. Só fica negado para quem desligou:
+      // estado 2, ou o antigo "Permitir contexto das abas" desmarcado antes de existir o estado.
+      const consentimentoGravado = parsed.copilotConsentimentoEstado;
+      conf.copilotConsentimentoEstado = consentimentoGravado === 1 || consentimentoGravado === 2
+        ? consentimentoGravado
+        : (parsed.copilotContextoPermitido === false ? 2 : 1);
       conf.relacionadosEmPilha = conf.relacionadosEmPilha !== false;
       conf.copilotColunaPct = normalizarPct(conf.copilotColunaPct, FAIXA_COPILOT);
       conf.atalhoColarPdfCopilot = require('./quick-shortcut-core').normalizarSalvo(conf.atalhoColarPdfCopilot);
@@ -243,6 +265,38 @@ function removeLink(category, id) {
   return config;
 }
 
+// Atalhos do painel marcados "visíveis ao Copilot" (campo opcional `copilot: true`, desligado por padrão). Percorre as três categorias
+// e os links dentro de grupos.
+function percorrerLinks(config, fn) {
+  for (const cat of ['jurisprudencia', 'legislacao', 'ferramentas']) {
+    for (const item of Array.isArray(config[cat]) ? config[cat] : []) {
+      if (item && item.tipo === 'grupo') { for (const sub of Array.isArray(item.itens) ? item.itens : []) if (sub && fn(sub, cat)) return true; }
+      else if (item && fn(item, cat)) return true;
+    }
+  }
+  return false;
+}
+function encontrarLink(id) {
+  if (typeof id !== 'string' || !id) return null;
+  let achado = null;
+  percorrerLinks(loadConfig(), (l, cat) => { if (l.id === id) { achado = { ...l, categoria: cat }; return true; } return false; });
+  return achado;
+}
+function setLinkCopilot(id, valor) {
+  if (typeof id !== 'string' || !id) return false;
+  const config = loadConfig();
+  const ok = percorrerLinks(config, (l) => { if (l.id !== id) return false; if (valor === true) l.copilot = true; else delete l.copilot; return true; });
+  if (!ok) return false;
+  config.juris = config.jurisprudencia; config.leis = config.legislacao;
+  saveConfig(config);
+  return true;
+}
+function listarLinksCopilot() {
+  const saida = [];
+  percorrerLinks(loadConfig(), (l, cat) => { if (l.copilot === true && l.id && typeof l.url === 'string' && l.url) saida.push({ id: l.id, nome: String(l.nome || l.url), url: l.url, categoria: cat }); return false; });
+  return saida;
+}
+
 function updateLink(category, id, nome, url) {
   category = normalizeCategory(category);
   const config = loadConfig();
@@ -251,9 +305,9 @@ function updateLink(category, id, nome, url) {
   if (index !== -1) {
     // Preserva o atalho do Acesso Rápido (campo opcional) ao editar nome/URL. Item de norma da biblioteca
     // local (`norma`, `origemUrl`) só continua vinculado se a URL não foi trocada.
-    const { atalho, norma, origemUrl } = config[category][index];
+    const { atalho, norma, origemUrl, copilot } = config[category][index];
     const mantemNorma = norma && config[category][index].url === url;
-    config[category][index] = { id, nome, url, ...(atalho ? { atalho } : {}), ...(mantemNorma ? { norma, ...(origemUrl ? { origemUrl } : {}) } : {}) };
+    config[category][index] = { id, nome, url, ...(atalho ? { atalho } : {}), ...(copilot === true ? { copilot: true } : {}), ...(mantemNorma ? { norma, ...(origemUrl ? { origemUrl } : {}) } : {}) };
     if (category === 'jurisprudencia') config.juris = config.jurisprudencia;
     if (category === 'legislacao') config.leis = config.legislacao;
     saveConfig(config);
@@ -601,6 +655,18 @@ function setColunaCopilot(ligada) {
   return config.colunaCopilot;
 }
 
+// Chave "Copilot nos textos" (ícone do Copilot na linha do cursor). Ligada por padrão.
+function getCopilotNosTextos() {
+  return loadConfig().copilotNosTextos !== false;
+}
+
+function setCopilotNosTextos(ligado) {
+  const config = loadConfig();
+  config.copilotNosTextos = ligado !== false;
+  saveConfig(config);
+  return config.copilotNosTextos;
+}
+
 // Toggle "Relacionados sob mesma aba" (pilha de processos relacionados). Ligado por padrão.
 function getRelacionadosEmPilha() {
   return loadConfig().relacionadosEmPilha !== false;
@@ -765,6 +831,8 @@ module.exports = {
   setOpenMode,
   getColunaCopilot,
   setColunaCopilot,
+  getCopilotNosTextos,
+  setCopilotNosTextos,
   getRelacionadosEmPilha,
   setRelacionadosEmPilha,
   getAvisoRelacionadosVisto,
@@ -786,6 +854,9 @@ module.exports = {
   addLink,
   removeLink,
   updateLink,
+  encontrarLink,
+  setLinkCopilot,
+  listarLinksCopilot,
   setCategoryLinks,
   moveLink,
   getCategoryWidth,
