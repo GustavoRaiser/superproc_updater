@@ -132,26 +132,26 @@ export default {
             } catch (_) {}
         }
 
-        // 1. CAPTURA NA LISTA DE PROCESSOS E FORÇAGEM DE MESMA ABA
+        // 1. CAPTURA NA LISTA DE PROCESSOS
+        // Abrir o processo na mesma aba (sem abas extras) é da shell: chave "Menos abertura de abas" em CFG > Configurações
+        // (browser/menos-abas.js). Com ela ligada, o clique é parado antes de chegar aqui e a shell avisa pelo evento
+        // `superproc-navegacao-processo`; desligada, o clique chega normalmente e o navegador segue o link.
         if (!isCapaProcesso) {
             let ultimaListaStr = "";
 
-            document.addEventListener('click', function(e) {
+            const aoAbrirProcessoDaLista = (e) => {
+                if (!(e.target instanceof Element)) return;
                 const link = e.target.closest('a[href*="acao=processo_selecionar"]');
                 if (link && link.href && link.closest('table')) {
                     const match = link.textContent.trim().match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
                     if (match) {
                         fecharArvoreAutomaticamente();
-                        // O clique pertence à navegação rápida: impede scripts
-                        // de gestos de abrir outra aba, mesmo com target=_self.
-                        e.preventDefault();
-                        e.stopImmediatePropagation();
-                        link.setAttribute('target', '_self');
                         processarPaginaLista();
-                        window.location.assign(link.href);
                     }
                 }
-            }, true);
+            };
+            document.addEventListener('click', aoAbrirProcessoDaLista, true);
+            document.addEventListener('superproc-navegacao-processo', aoAbrirProcessoDaLista, true);
 
             function capturarNomeLocalizador() {
                 const relatorioPesquisa = document.querySelector('#container_criterios_pesquisa li p');
@@ -181,18 +181,7 @@ export default {
             }
 
             function processarPaginaLista() {
-                const links = Array.from(document.querySelectorAll('table a[href*="acao=processo_selecionar"]'));
                 const listaProcessos = captureProcessList(document, location.href, feitoCfg ? feitoCfg.name : undefined);
-
-                links.forEach(a => {
-                    const match = a.textContent.trim().match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
-                    if (match) {
-                        
-                        if (a.getAttribute('target') !== '_self') {
-                            a.setAttribute('target', '_self');
-                        }
-                    }
-                });
 
                 if (listaProcessos.length > 0) {
                     const novaListaStr = JSON.stringify(listaProcessos);

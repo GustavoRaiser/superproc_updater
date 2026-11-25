@@ -67,6 +67,14 @@
           <h3>🧰 Navegador</h3>
           <label><input type="checkbox" id="chk-settings-corretor"> Corretor ortográfico</label>
           <p class="settings-desc">Sublinha palavras erradas e sugere correções em qualquer campo de texto (pt-BR, dicionário local). Desative em caso de problema; campos já abertos podem exigir recarregar a página.</p>
+          <label><input type="checkbox" id="chk-settings-menos-abas"> Menos abertura de abas</label>
+          <p class="settings-desc">Vem ligado. Na lista de processos do eproc (localizadores, pesquisas), o clique no número do processo abre na mesma aba, mesmo que outra extensão ou a página tente abrir uma aba nova. Vale também para Ctrl+clique; o clique do meio continua abrindo aba.</p>
+          <label><input type="checkbox" id="chk-settings-botoes-eproc"> Início e Meus Localizadores na barra</label>
+          <p class="settings-desc">Vem ligado. Depois do login, os botões Início e Meus Localizadores do eproc passam para a barra do navegador. Meus Localizadores abre o painel em colunas, com grupos e arrastar e soltar.</p>
+          <label><input type="checkbox" id="chk-settings-smart"> Smart Localizadores &amp; Eventos</label>
+          <p class="settings-desc">Vem ligado. Busca e grupos nos campos de localizador e de lançamento de evento do eproc. Os grupos se organizam em CFG &gt; Organizar grupos. Desligar vale a partir do próximo carregamento da página.</p>
+          <label><input type="checkbox" id="chk-settings-coloridos"> Localizadores Coloridos</label>
+          <p class="settings-desc">Vem ligado. Pinta e ordena os localizadores por prioridade na capa e nas listas; botão direito sobre um localizador define cor e prioridade. Desligar vale a partir do próximo carregamento da página.</p>
         </div>
 
         <div class="settings-card">
@@ -110,6 +118,13 @@
           <p class="settings-desc">O SuperPROC entrega até 10 milhões de caracteres por aba (PDFs grandes inclusos). Desligado, vale o tamanho que o próprio Copilot pede, como no Edge. Ligue se o texto de um processo grande chegar cortado; se o Copilot passar a falhar ao ler a aba, desligue.</p>
           <label><input type="checkbox" id="chk-settings-copilot-contexto"> Permitir que o Copilot use o conteúdo do navegador</label>
           <p class="settings-desc">Vem ligado. O Copilot pode consultar a aba atual e as abas abertas para responder, e os atalhos de contexto (Ctrl+Shift+K e Ctrl+Shift+J) ficam disponíveis. O texto das abas vai para o serviço Copilot da Microsoft. Desligue para que nada das abas seja entregue.</p>
+          <div class="experimental" id="copilot-experimental" role="group" aria-labelledby="copilot-experimental-titulo">
+            <h4 id="copilot-experimental-titulo"><span class="experimental-selo">EXPERIMENTAL</span></h4>
+            <label><input type="checkbox" data-copilot-admin="quadros"> Registrar os quadros do chat do Copilot (só metadados)</label>
+            <p class="settings-desc">Anota em <code>copilot-quadros.jsonl</code>, no perfil, o tipo e os nomes de ferramentas e plugins que passam pelo WebSocket do chat, para estudar como o Copilot chama as ferramentas. Nunca grava texto de conversa, conteúdo de aba, argumentos nem respostas. Só observa: não envia nem altera nada. Vem ligado.</p>
+            <label><input type="checkbox" data-copilot-admin="modoDesenvolvedor"> Abrir o Copilot em modo desenvolvedor (<code>developerMode=Basic</code>)</label>
+            <p class="settings-desc">Pede à página do Copilot o log do desenvolvedor, com os plugins ativos e as funções escolhidas e executadas em cada resposta. Vale na próxima abertura da coluna. Se a página ignorar o pedido, nada muda. Vem ligado.</p>
+          </div>
         </div>
 
         <div class="settings-card">

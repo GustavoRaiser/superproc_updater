@@ -171,7 +171,7 @@ body {
   color: #e6edf5;
   background-color: #11161f;
   border: 1px solid var(--border-color);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
   pointer-events: none;
 }
 
@@ -608,3 +608,10 @@ body {
 .ia-detalhes dd { color: var(--text-primary); user-select: text; overflow-wrap: anywhere; }
 .ia-detalhes dd code { font-family: Consolas, "Cascadia Mono", monospace; user-select: text; }
 .ia-folha.ia-desligada .ia-linha label { color: var(--text-muted); }
+
+
+/* Quadro EXPERIMENTAL do Copilot no SuperPROC: fica no fim do cartão e destacado das configurações estáveis. */
+.experimental { margin-top: 14px; padding: 10px 12px; border: 1px dashed #d97706; border-left: 4px solid #d97706; border-radius: 6px; background: rgba(217, 119, 6, 0.08); }
+.experimental h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.08em; }
+.experimental-selo { display: inline-block; padding: 2px 8px; border-radius: 4px; background: #b45309; color: #fff; font-weight: 700; }
+.experimental label { display: block; font-size: 12px; margin: 3px 0; }

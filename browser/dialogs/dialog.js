@@ -178,6 +178,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       catch { chkSettingsCorretor.checked = !chkSettingsCorretor.checked; cacheStatus.textContent = 'Não foi possível salvar o Corretor ortográfico.'; }
     });
 
+    // Menos abertura de abas: clique no processo da lista do eproc na mesma aba (menos-abas.js no host).
+    const chkSettingsMenosAbas = document.getElementById('chk-settings-menos-abas');
+    chkSettingsMenosAbas.checked = settingsCfg.menosAberturaAbas !== false;
+    chkSettingsMenosAbas.addEventListener('change', async () => {
+      try { await api.setMenosAberturaAbas(chkSettingsMenosAbas.checked); }
+      catch { chkSettingsMenosAbas.checked = !chkSettingsMenosAbas.checked; cacheStatus.textContent = 'Não foi possível salvar Menos abertura de abas.'; }
+    });
+
+    // Início e Meus Localizadores na barra (botoes-eproc-barra.js no host).
+    const chkSettingsBotoesEproc = document.getElementById('chk-settings-botoes-eproc');
+    chkSettingsBotoesEproc.checked = settingsCfg.botoesEprocNaBarra !== false;
+    chkSettingsBotoesEproc.addEventListener('change', async () => {
+      try { await api.setBotoesEprocNaBarra(chkSettingsBotoesEproc.checked); }
+      catch { chkSettingsBotoesEproc.checked = !chkSettingsBotoesEproc.checked; cacheStatus.textContent = 'Não foi possível salvar Início e Meus Localizadores na barra.'; }
+    });
+
+    // Recursos do eproc portados da extensão (eproc-recursos.js no host).
+    for (const [id, chave, salvar, rotulo] of [
+      ['chk-settings-smart', 'smartLocsEventos', api.setSmartLocsEventos, 'Smart Localizadores & Eventos'],
+      ['chk-settings-coloridos', 'localizadoresColoridos', api.setLocalizadoresColoridos, 'Localizadores Coloridos']
+    ]) {
+      const chk = document.getElementById(id);
+      chk.checked = settingsCfg[chave] !== false;
+      chk.addEventListener('change', async () => {
+        try { await salvar(chk.checked); }
+        catch { chk.checked = !chk.checked; cacheStatus.textContent = 'Não foi possível salvar ' + rotulo + '.'; }
+      });
+    }
+
     // Consentimento da ponte do Copilot: ligado só quando a pessoa já permitiu (estado 1).
     const chkSettingsCopilot = document.getElementById('chk-settings-copilot-contexto');
     chkSettingsCopilot.checked = settingsCfg.copilotConsentimentoEstado === 1;

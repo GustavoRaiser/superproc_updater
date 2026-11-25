@@ -17,7 +17,13 @@ const path = require('node:path');
 const { criarAdminBroker } = require('../admin-broker');
 
 const ARQUIVO_POLITICA = 'copilot-admin.json';
-const CHAVES = Object.freeze(['leitura', 'organizacao', 'destrutiva', 'contexto', 'historico', 'linkExterno', 'mcp', 'pipe', 'captura', 'agentico']);
+// EXPERIMENTAIS (quadro "EXPERIMENTAL" em CFG → Configurações → Copilot no SuperPROC): quadros = registrador passivo dos quadros do chat
+// (copilot-shell/quadros-chat.js, só metadados); modoDesenvolvedor = abre a página do Copilot com developerMode=Basic.
+// DECISÃO DO RESPONSÁVEL (2026-11-24): vêm LIGADAS. Num copilot-admin.json antigo, que não tem estas chaves, a ausência vale LIGADO
+// (as demais chaves continuam: ausente = desligado). Valor false gravado pela pessoa é respeitado.
+const CHAVES_EXPERIMENTAIS = Object.freeze(['quadros', 'modoDesenvolvedor']);
+const CHAVES = Object.freeze(['leitura', 'organizacao', 'destrutiva', 'contexto', 'historico', 'linkExterno', 'mcp', 'pipe', 'captura', 'agentico', ...CHAVES_EXPERIMENTAIS]);
+const valorDaChave = (j, k) => (CHAVES_EXPERIMENTAIS.includes(k) && j[k] === undefined ? true : j[k] === true);
 
 // Política criada na primeira abertura quando o arquivo não existe (nunca sobrescreve). DECISÃO DO RESPONSÁVEL (2026-11-21, confirmada
 // na migração para a v2_electron): tudo ligado, igual ao clone; as ações destrutivas seguem perguntando a cada vez.
@@ -37,7 +43,7 @@ function gravarChaveDePolitica(pasta, chave, valor, { lerArquivo = (p) => fs.rea
   if (!CHAVES.includes(chave) || typeof valor !== 'boolean') throw Error('Política inválida.');
   const arquivo = path.join(pasta, ARQUIVO_POLITICA);
   let atual = { ...POLITICA_INICIAL };
-  try { const j = JSON.parse(lerArquivo(arquivo)); if (j && typeof j === 'object' && !Array.isArray(j)) atual = { ...Object.fromEntries(CHAVES.map((k) => [k, false])), ...Object.fromEntries(CHAVES.map((k) => [k, j[k] === true])) }; } catch (_) { /* sem arquivo legível: parte do padrão */ }
+  try { const j = JSON.parse(lerArquivo(arquivo)); if (j && typeof j === 'object' && !Array.isArray(j)) atual = { ...Object.fromEntries(CHAVES.map((k) => [k, false])), ...Object.fromEntries(CHAVES.map((k) => [k, valorDaChave(j, k)])) }; } catch (_) { /* sem arquivo legível: parte do padrão */ }
   atual[chave] = valor;
   fs.mkdirSync(pasta, { recursive: true });
   escrever(arquivo, JSON.stringify(atual, null, 2) + '\n');
@@ -52,7 +58,7 @@ function criarLeitorDePolitica({ pasta, lerArquivo = (p) => fs.readFileSync(p, '
     const pol = Object.fromEntries(CHAVES.map((k) => [k, false]));
     try {
       const j = JSON.parse(lerArquivo(path.join(pasta, ARQUIVO_POLITICA)));
-      if (j && typeof j === 'object') for (const k of CHAVES) pol[k] = j[k] === true;
+      if (j && typeof j === 'object') for (const k of CHAVES) pol[k] = valorDaChave(j, k);
     } catch (_) { /* sem arquivo: tudo desligado */ }
     cache = Object.freeze(pol); ate = t + validadeMs;
     return cache;
@@ -140,4 +146,4 @@ function criarFerramentasHost({ politicasIA = null, pasta, registry, contextBrok
   return { admin, ferramentas, politica };
 }
 
-module.exports = { capturarWebContents, lerPoliticaDoDisco, gravarChaveDePolitica, POLITICA_INICIAL, garantirArquivoDePolitica, realcarEmWebContents, limparRealceEmWebContents, ARQUIVO_POLITICA, CHAVES, criarLeitorDePolitica, criarFerramentasHost };
+module.exports = { CHAVES_EXPERIMENTAIS, capturarWebContents, lerPoliticaDoDisco, gravarChaveDePolitica, POLITICA_INICIAL, garantirArquivoDePolitica, realcarEmWebContents, limparRealceEmWebContents, ARQUIVO_POLITICA, CHAVES, criarLeitorDePolitica, criarFerramentasHost };

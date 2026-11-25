@@ -85,7 +85,7 @@ function superprocPdfFindPlus(recortar) {
       // Glossário: painel solto sob a barra (não altera a altura da barra)
       '#findbar > #spGlossPanel{position:absolute;left:0;top:100%;width:100%;height:auto;padding:0;box-sizing:border-box;' +
         'background:var(--toolbar-bg-color,#fff);border-radius:0 0 2px 2px;' +
-        'box-shadow:0 3px 5px var(--doorhanger-border-color,rgba(0,0,0,.3)),0 0 0 1px var(--doorhanger-border-color,rgba(0,0,0,.2))}',
+        'box-shadow:rgba(0,0,0,.3)), 0 0 0 1px var(--doorhanger-border-color, rgba(0,0,0,.2))}',
       '#spGlossPanel[hidden]{display:none}',
       '#spGlossList{position:relative;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}',
       '#spGlossSpacer{position:relative;width:100%}',

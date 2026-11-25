@@ -48,6 +48,12 @@ contextBridge.exposeInMainWorld('superprocAPI', {
   getCopilotColuna: () => ipcRenderer.invoke('copilot-coluna-get'),
   toggleCopilotColuna: () => ipcRenderer.send('copilot-coluna-toggle'),
   cliqueCopilotColuna: (botao) => ipcRenderer.invoke('copilot-coluna-clique', botao),
+  // Início / Meus Localizadores raptados da navbar do eproc (botoes-eproc-barra.js)
+  onBotoesEproc: (callback) => {
+    ipcRenderer.on('eproc-botoes-barra', (event, data) => callback(data));
+  },
+  getBotoesEproc: () => ipcRenderer.invoke('eproc-botoes-barra-estado'),
+  acaoBotoesEproc: (acao, rect) => ipcRenderer.send('eproc-botoes-barra-acao', { acao, rect: rect || null }),
 
   // URL & Navegação
   getActiveUrl: () => ipcRenderer.invoke('get-active-url'),

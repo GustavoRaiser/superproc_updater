@@ -36,6 +36,14 @@
 
         const currentUrl = new URL(window.location.href);
         const urlParams = currentUrl.searchParams;
+
+        // Pool comum com o navegador SuperPROC (docs/ia/POOL-COMUM.md): cores dos localizadores também no localStorage do
+        // eproc, o endereço que extensão e navegador alcançam sozinhos. Sempre ativa; independe dos módulos ligados.
+        if (currentUrl.pathname.includes('controlador.php')) {
+            import(chrome.runtime.getURL('core/pool_comum.js'))
+                .then(m => m.instalarPoolComum())
+                .catch(() => {});
+        }
         const acaoAtual = urlParams.get('acao') || 'desconhecida';
 
         // Objeto global para depuração e inspeção
@@ -81,6 +89,18 @@
         const allModules = [...Registry.getAllModules(), ...await carregarModulosUsuario()];
         const enabledMap = await Storage.getEnabledMap();
 
+        // Navegador SuperPROC: os módulos que ele mesmo implementa (mesmos ids) ficam parados aqui, para não duplicar menus
+        // e pinturas — "CONTROLADO PELO NAVEGADOR". O navegador publica a lista em <html data-superproc-navegador-modulos>
+        // (e no localStorage do eproc). Em outros navegadores a marca não existe e nada muda.
+        const controladosNavegador = new Set();
+        try {
+            const marca = document.documentElement.getAttribute('data-superproc-navegador-modulos') || '';
+            marca.split(/\s+/).filter(Boolean).forEach(id => controladosNavegador.add(id));
+            const salvos = JSON.parse(localStorage.getItem('__superproc_navegador_modulos') || '[]');
+            if (Array.isArray(salvos)) salvos.filter(id => typeof id === 'string').forEach(id => controladosNavegador.add(id));
+        } catch (_) { /* sem marca: segue normal */ }
+        window.__SUPERPROC__.controladosNavegador = [...controladosNavegador];
+
         let carregados = 0;
 
         for (const meta of allModules) {
@@ -88,6 +108,11 @@
             const isEnabled = enabledMap[meta.id] !== undefined ? Boolean(enabledMap[meta.id]) : meta.defaultEnabled;
 
             if (!isEnabled) {
+                continue;
+            }
+
+            if (controladosNavegador.has(meta.id)) {
+                console.info(`[SuperPROC] "${meta.name}": controlado pelo navegador SuperPROC; o módulo da extensão fica parado.`);
                 continue;
             }
 

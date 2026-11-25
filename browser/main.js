@@ -242,6 +242,8 @@ const colunaCopilot = criarColunaCopilot({
       sessao: session.defaultSession, urlEntrada, urlCopilot: urlPilotoCopilot, log: (m) => { try { logDebugger('COPILOT_ENTRADA', m); } catch (_) {} } }) }),
     ...(ponteCopilotLigada ? { preload: path.join(__dirname, 'copilot-shell', 'cr-bridge-preload.js') } : {})
   } : {}),
+  // EXPERIMENTAL (chave modoDesenvolvedor do copilot-admin.json, ligada por padrão): abre a página do Copilot com developerMode=Basic.
+  ajustarUrl: (u) => { try { return require('./copilot-shell/quadros-chat').urlComModoDesenvolvedor(u, require('./copilot-shell/ferramentas-host').lerPoliticaDoDisco(app.getPath('userData')).modoDesenvolvedor === true); } catch (_) { return u; } },
   WebContentsView, Menu,
   observarColuna: criarConversaAposCarga ? (coluna) => require('./copilot-shell/conversa-web').observarConversaWeb({
     coluna, BrowserWindow, clientId: clientIdCopilot, tenant: tenantCopilot,
@@ -262,6 +264,7 @@ const colunaCopilot = criarColunaCopilot({
 let escutaCopilot = null;
 let envioPdfCopilotRef = null; // atalho "PDF no Copilot" (F4); preenchido adiante
 let fastCopilotRef = null; // preenchido quando o Fast Copilot é criado
+let modoEditorRef = null; // Copilot no modo editor (copilot-modo-editor.js); preenchido junto dos botões de anexo
 
 // Copilot nos textos: ícone do Copilot na linha do cursor + menu de prompts (redator-linha.js), em qualquer página http/https das
 // abas. O pedido vai à coluna do Copilot como CITAÇÃO + prompt pronto (redator-coluna.js) e a resposta volta à aba como proposta,
@@ -303,7 +306,112 @@ function ligarRedatorNaAba(wc) {
   const injetar = () => { if (redatorAtivo()) redatorLinha.injetar(wc); };
   wc.on('did-finish-load', injetar);
   wc.on('dom-ready', injetar);
-  if (!wc.__spRedatorConsole) { wc.__spRedatorConsole = true; wc.on('console-message', (_e, _l, msg) => { if (redatorAtivo()) redatorLinha.aoConsole(wc, msg); }); }
+  if (!wc.__spRedatorConsole) { wc.__spRedatorConsole = true; wc.on('console-message', (event, ...rest) => { const msg = (event && typeof event.message === 'string') ? event.message : (typeof rest[1] === 'string' ? rest[1] : ''); if (msg && redatorAtivo()) redatorLinha.aoConsole(wc, msg); }); }
+}
+// "Menos abertura de abas" (CFG > Configurações): clique no processo da lista do eproc abre na mesma aba (menos-abas.js).
+const menosAbas = require('./menos-abas').criarMenosAbas({
+  ativo: () => { try { return configManager.loadConfig().menosAberturaAbas !== false; } catch (_) { return false; } },
+  log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
+});
+// "Início e Meus Localizadores na barra" (CFG > Configurações): rapta os dois botões da navbar do eproc para a barra do
+// navegador; o de localizadores abre o painel em colunas, uma janela da shell (botoes-eproc-barra.js + locs-painel-host.js).
+const botoesEprocLigado = () => { try { return configManager.loadConfig().botoesEprocNaBarra !== false; } catch (_) { return false; } };
+const botoesEproc = require('./botoes-eproc-barra').criarBotoesEproc({
+  ativo: botoesEprocLigado,
+  aoMudar: () => publicarBotoesEproc(),
+  aoCarregar: (wc) => { locsPainel.aoCarregarPagina(wc).catch(() => {}); },
+  log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
+});
+// Painel "Meus Localizadores": janela própria, independente da página aberta; dados na base comum do eproc.
+const locsPainel = require('./locs-painel-host').criarLocsPainel({
+  janelaPai: () => mainWindow,
+  abasDaOrigem: (origem) => abasEprocParaOrganizador().filter(wc => { try { return new URL(wc.getURL()).origin === origem; } catch (_) { return false; } }),
+  permitido: (url) => botoesEproc.permitido(url),
+  navegar: (url) => navegarPeloPainelLocs(url),
+  log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
+});
+// Smart Localizadores & Eventos e Localizadores Coloridos portados da extensão (eproc-recursos.js) e o Organizador do
+// navegador (organizador-host.js). Chaves em CFG > Configurações; dados na base comum do localStorage do eproc.
+const cfgLigado = (chave) => { try { return configManager.loadConfig()[chave] !== false; } catch (_) { return false; } };
+const recursosEproc = require('./eproc-recursos').criarRecursosEproc({
+  smartLigado: () => cfgLigado('smartLocsEventos'),
+  coloridosLigado: () => cfgLigado('localizadoresColoridos'),
+  barraLigada: botoesEprocLigado,
+  log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
+});
+// Abas do eproc abertas para o Organizador: a aba ativa (e seu grupo) primeiro.
+function abasEprocParaOrganizador() {
+  const ordem = [...abasDoGrupoAtivo(), ...tabs];
+  const vistos = new Set();
+  return ordem.filter(t => t && t.view && !t.view.webContents.isDestroyed() && !vistos.has(t) && vistos.add(t))
+    .map(t => t.view.webContents)
+    .filter(wc => recursosEproc.permitido(wc.getURL()));
+}
+const organizadorHost = require('./organizador-host').criarOrganizadorHost({
+  abasEproc: abasEprocParaOrganizador,
+  janelaPai: () => mainWindow,
+  topo: () => TITLEBAR_HEIGHT,
+  // Painel fechado: o foco volta para a aba ativa.
+  aoFechar: () => { const t = tabs.find(x => x.id === activeTabId); try { if (t && t.view && !t.view.webContents.isDestroyed()) t.view.webContents.focus(); } catch (_) {} },
+  log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
+});
+let ultimoEstadoBotoesEproc = null;
+
+// Abas do grupo da aba ativa; a principal é a que tem os botões da navbar do eproc (de preferência a própria ativa).
+function abasDoGrupoAtivo() {
+  const ativa = tabs.find(t => t.id === activeTabId);
+  if (!ativa) return [];
+  return ativa.groupId ? [ativa, ...tabs.filter(t => t.groupId === ativa.groupId && t !== ativa)] : [ativa];
+}
+// Início/Meus Localizadores memorizados para a sessão e a origem do eproc da aba (sessionLinks: lidos uma vez depois do
+// login e descartados só no login/logout). Não dependem da página atual, então a barra não pisca a cada carregamento.
+function linksBotoesEproc(tab) {
+  if (!tab || !tab.view || tab.view.webContents.isDestroyed()) return null;
+  const l = sessionLinks.get(tabSession(tab), tabPage(tab));
+  return l && l.home && l.localizadores ? { home: l.home, locs: l.localizadores } : null;
+}
+function abaPrincipalEproc() {
+  return abasDoGrupoAtivo().find(t => linksBotoesEproc(t)) || null;
+}
+function publicarBotoesEproc() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const visivel = botoesEprocLigado() && !!abaPrincipalEproc();
+  if (ultimoEstadoBotoesEproc === visivel) return;
+  ultimoEstadoBotoesEproc = visivel;
+  try { mainWindow.webContents.send('eproc-botoes-barra', { visivel }); } catch (_) {}
+  // Painel de localizadores: de uso frequente, fica criado enquanto os botões estão na barra (abre sem atraso).
+  if (visivel) locsPainel.preparar(); else locsPainel.fechar();
+}
+// Localizador escolhido no painel: abre na aba principal do eproc (a que tem os botões da navbar), na mesma origem.
+function navegarPeloPainelLocs(url) {
+  const principal = abaPrincipalEproc();
+  if (!principal) return;
+  const destinoWc = principal.view.webContents;
+  try {
+    const u = new URL(url);
+    if (u.origin !== new URL(destinoWc.getURL()).origin || !botoesEproc.permitido(url)) return;
+    destinoWc.loadURL(u.href);
+  } catch (_) {}
+}
+function acaoBotoesEproc(dados) {
+  if (!dados || typeof dados !== 'object') return;
+  if (dados.acao === 'locs-saiu') { locsPainel.saiuDoBotao(); return; }
+  if (!botoesEprocLigado()) return;
+  const principal = abaPrincipalEproc();
+  if (!principal) return;
+  const wcPrincipal = principal.view.webContents;
+  const estado = linksBotoesEproc(principal);
+  if (dados.acao === 'home') {
+    if (botoesEproc.permitido(wcPrincipal.getURL())) botoesEproc.clicarInicio(wcPrincipal, estado.home);
+    else wcPrincipal.loadURL(estado.home);
+    return;
+  }
+  const r = dados.rect;
+  if (!r || ![r.left, r.right, r.bottom].every(Number.isFinite)) return;
+  const pedido = { urlLocs: estado.locs, rect: { left: r.left, right: r.right, bottom: r.bottom } };
+  // O painel é exclusivo do hover; o clique leva à página nativa de Meus Localizadores na aba principal.
+  if (dados.acao === 'locs-entrou') locsPainel.abrir(pedido, false);
+  else if (dados.acao === 'locs-clique') { locsPainel.fechar(); navegarPeloPainelLocs(estado.locs); }
 }
 let consentimentoCopilotRef = null; // motor de consentimento da ponte do cr-host (só com ponteCopilotLigada)
 let cartaoConsentimentoRef = null;  // cartão "O Copilot deseja usar o conteúdo" sobre a coluna
@@ -449,7 +557,7 @@ function getOrCreateFindWindow(initialRect = null) {
     frame: false,
     roundedCorners: false,
     transparent: true,
-    hasShadow: true,
+    hasShadow: false,
     show: false,
     skipTaskbar: true,
     resizable: false,
@@ -712,6 +820,29 @@ function getOrCreateHoverSubWindow() {
   return hoverSubWin;
 }
 
+// --- MENUS SOB DEMANDA (CFG, DOWNLOADS, HISTÓRICO) ---
+// Estes três menus são criados no clique e destruídos depois de um tempo fechados, para não manter um
+// processo de renderização parado. Menus de hover e de uso frequente continuam sempre prontos.
+// Reabrir dentro do prazo é instantâneo; depois dele, a janela é recriada no clique (~200–400 ms).
+const MENU_SOB_DEMANDA_LIBERAR_MS = 60 * 1000;
+const menuSobDemandaTimers = new Map();
+function cancelarLiberacaoMenu(chave) {
+  clearTimeout(menuSobDemandaTimers.get(chave));
+  menuSobDemandaTimers.delete(chave);
+}
+function agendarLiberacaoMenu(chave, win) {
+  cancelarLiberacaoMenu(chave);
+  if (!win || win.isDestroyed()) return;
+  const t = setTimeout(() => {
+    menuSobDemandaTimers.delete(chave);
+    if (win.isDestroyed() || win.isVisible()) return;
+    logDebugger('MENU_SOB_DEMANDA_LIBERADO', 'Janela de menu fechada liberada da memória', { menu: chave });
+    win.destroy();
+  }, MENU_SOB_DEMANDA_LIBERAR_MS);
+  t.unref?.();
+  menuSobDemandaTimers.set(chave, t);
+}
+
 // --- JANELA DO MENU CFG (TOP-LEVEL SCOPE) ---
 let cfgMenuWin = null;
 let isExtensionsUpdating = false;
@@ -765,6 +896,7 @@ function hideCfgMenu(restoreFocus = false) {
   if (cfgMenuWin && !cfgMenuWin.isDestroyed() && cfgMenuWin.isVisible()) {
     cfgMenuWin.hide();
   }
+  agendarLiberacaoMenu('cfg', cfgMenuWin);
   popupMenuState('btn-cfg',false);
   if (restoreFocus) restorePopupTrigger('btn-cfg');
 }
@@ -805,6 +937,7 @@ function getOrCreateCfgMenuWindow() {
     hideCfgMenu();
   });
 
+  { const w = cfgMenuWin; w.on('closed', () => { if (cfgMenuWin === w) cfgMenuWin = null; }); } // liberado após fechado (agendarLiberacaoMenu)
   cfgMenuWin.loadFile(path.join(__dirname, 'cfg-menu', 'cfg-menu.html'));
   return cfgMenuWin;
 }
@@ -925,6 +1058,7 @@ function agendarVerificacaoAtualizacaoApp() {
 function showCfgMenu(coords) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   hideHoverMenu();
+  cancelarLiberacaoMenu('cfg');
   const win = getOrCreateCfgMenuWindow();
 
   const [winX, winY] = mainWindow.getPosition();
@@ -964,6 +1098,8 @@ function showCfgMenu(coords) {
         focusFirst: firstState && coords?.keyboard === true,
         atalhoColarPdf: configManager.getAtalhoColarPdf(),
         atalhoMinutaCopilot: configManager.getAtalhoMinutaCopilot(),
+        atalhoModoEditor: configManager.getAtalhoModoEditor(),
+        copilotModoEditor: configManager.getCopilotModoEditor(),
         atalhoFastCopilot: configManager.getAtalhoFastCopilot(),
         atalhoAlteracaoTexto: configManager.getAtalhoAlteracaoTexto(),
         ...extra,
@@ -1009,6 +1145,7 @@ function hideDownloadsMenu() {
   if (downloadsMenuWin && !downloadsMenuWin.isDestroyed() && downloadsMenuWin.isVisible()) {
     downloadsMenuWin.hide();
   }
+  agendarLiberacaoMenu('downloads', downloadsMenuWin);
 }
 
 function getOrCreateDownloadsMenuWindow() {
@@ -1035,6 +1172,7 @@ function getOrCreateDownloadsMenuWindow() {
     hideDownloadsMenu();
   });
 
+  { const w = downloadsMenuWin; w.on('closed', () => { if (downloadsMenuWin === w) downloadsMenuWin = null; }); } // liberado após fechado (agendarLiberacaoMenu)
   downloadsMenuWin.loadFile(path.join(__dirname, 'downloads-menu', 'downloads-menu.html'));
   return downloadsMenuWin;
 }
@@ -1045,6 +1183,7 @@ function showDownloadsMenu(coords) {
   hideHistoryMenu();
   hideHoverMenu();
 
+  cancelarLiberacaoMenu('downloads');
   const win = getOrCreateDownloadsMenuWindow();
 
   const [winX, winY] = mainWindow.getPosition();
@@ -1081,6 +1220,7 @@ function hideHistoryMenu() {
   if (historyMenuWin && !historyMenuWin.isDestroyed() && historyMenuWin.isVisible()) {
     historyMenuWin.hide();
   }
+  agendarLiberacaoMenu('history', historyMenuWin);
 }
 
 function getOrCreateHistoryMenuWindow() {
@@ -1107,6 +1247,7 @@ function getOrCreateHistoryMenuWindow() {
     hideHistoryMenu();
   });
 
+  { const w = historyMenuWin; w.on('closed', () => { if (historyMenuWin === w) historyMenuWin = null; }); } // liberado após fechado (agendarLiberacaoMenu)
   historyMenuWin.loadFile(path.join(__dirname, 'history-menu', 'history-menu.html'));
   return historyMenuWin;
 }
@@ -1117,6 +1258,7 @@ function showHistoryMenu(coords) {
   hideDownloadsMenu();
   hideHoverMenu();
 
+  cancelarLiberacaoMenu('history');
   const win = getOrCreateHistoryMenuWindow();
 
   const [winX, winY] = mainWindow.getPosition();
@@ -1755,6 +1897,40 @@ function logGroupSkip(tab, reason) {
   logDebugger('TAB_GROUP_SKIP_' + reason, 'Aba nativa não agrupada', { webContentsId: tab.view?.webContents?.id });
 }
 
+const menosAbasLigado = () => { try { return configManager.loadConfig().menosAberturaAbas !== false; } catch (_) { return false; } };
+
+// A aba nova (contexto nativo, já criado pelo Chromium) assume a posição da aba que ocupava o mesmo papel no grupo. A antiga
+// deixa o papel na hora e é fechada no próximo ciclo, depois que o Chromium termina de criar a nova (mesma regra do
+// registerNativeTab: nada de foco/layout dentro do retorno de criação). Ela vai para o histórico de abas fechadas (Ctrl+Shift+T).
+function substituirOcupanteDoGrupo(ocupante, nova) {
+  ocupante.isClosing = true;
+  ocupante.processRole = 'substituida';
+  if (ocupante.lastLeftTabId && !nova.lastLeftTabId) nova.lastLeftTabId = ocupante.lastLeftTabId;
+  for (const t of tabs) if (t.lastLeftTabId === ocupante.id) t.lastLeftTabId = nova.id;
+  logDebugger('TAB_GROUP_SUBSTITUIDA', 'Aba do grupo substituída pela nova na mesma posição', { webContentsId: nova.view?.webContents?.id });
+  setImmediate(() => {
+    const indice = tabs.indexOf(ocupante);
+    if (indice === -1) return;
+    const eraAtiva = activeTabId === ocupante.id;
+    if (ocupante.url && !ocupante.url.startsWith('file://')) {
+      closedTabsHistory.push({ url: ocupante.url, title: ocupante.title });
+      if (closedTabsHistory.length > 30) closedTabsHistory.shift();
+    }
+    try { if (mainWindow && ocupante.view) removeTabView(ocupante.view); } catch (_) {}
+    try { if (ocupante.view && ocupante.view.webContents && !ocupante.view.webContents.isDestroyed()) ocupante.view.webContents.destroy(); } catch (_) {}
+    tabs.splice(indice, 1);
+    // A nova fica exatamente onde a antiga estava (quando veio de outra posição da barra).
+    const atual = tabs.indexOf(nova);
+    if (atual !== -1) {
+      const destino = Math.min(indice, tabs.length - 1);
+      if (atual !== destino && atual !== destino + 1 && atual !== indice) { tabs.splice(atual, 1); tabs.splice(Math.min(indice, tabs.length), 0, nova); }
+      if (eraAtiva && nova.view && !nova.view.webContents.isDestroyed()) switchTab(nova.id);
+    }
+    updateLayoutBounds();
+    notifyTabsUpdated();
+  });
+}
+
 function tryGroupNativeTab(tab) {
   if (tab.groupId || !tab.nativeSourceTabId || tab.nativeStandalone) return;
   let source = tabs.find(t => t.id === tab.nativeSourceTabId);
@@ -1776,7 +1952,13 @@ function tryGroupNativeTab(tab) {
   if (targetInfo.role === sourceInfo.role) { logGroupSkip(tab, 'MESMO_PAPEL'); return; }
   if (targetInfo.procNumber && sourceInfo.procNumber && targetInfo.procNumber !== sourceInfo.procNumber) { logGroupSkip(tab, 'NUMERO_DIFERENTE'); return; }
   const groupId = source.groupId || ('grp_native_' + source.id);
-  if (tabs.some(t => t.id !== tab.id && t.groupId === groupId && t.processRole === targetInfo.role)) { logGroupSkip(tab, 'PAPEL_JA_EXISTE_NO_GRUPO'); return; }
+  const ocupante = tabs.find(t => t.id !== tab.id && t.groupId === groupId && t.processRole === targetInfo.role && !t.isClosing);
+  if (ocupante) {
+    // A posição já está ocupada. Com "Menos abertura de abas" ligada, um documento/árvore novo TOMA O LUGAR do que está lá,
+    // em vez de virar aba avulsa. A minuta (editor) nunca é substituída: pode ter texto não salvo.
+    if (targetInfo.role !== 'arvore' || !menosAbasLigado()) { logGroupSkip(tab, 'PAPEL_JA_EXISTE_NO_GRUPO'); return; }
+    substituirOcupanteDoGrupo(ocupante, tab);
+  }
   source.groupId = groupId;
   source.processRole = sourceInfo.role;
   tab.groupId = groupId;
@@ -1844,6 +2026,7 @@ function updateSessionEprocData(hash, homeHref, locHref, pageUrl, tabData) {
   if (!tabData) return;
   const links = sessionLinks.remember(tabSession(tabData), pageUrl, homeHref, locHref);
   tabData.eprocNavigationLinks = links;
+  publicarBotoesEproc(); // primeira vez que a sessão conhece Início/Meus Localizadores: mostra os botões na barra
 }
 function captureEprocHash(url, tabData) {
   if (!tabData) return;
@@ -1854,6 +2037,7 @@ function captureEprocHash(url, tabData) {
     for (const tab of tabs) if (tabSession(tab) === ses && sessionLinks.origin(tabPage(tab)) === origin) delete tab.eprocNavigationLinks;
     sessionLoginDone = true;
     pdfReader.clear?.();
+    publicarBotoesEproc(); // login/logout: links da sessão descartados, a barra esconde os botões até o novo login
     return;
   }
   signedLinks.remember(ses, url); // só em memória, para reabrir itens do histórico com assinatura válida
@@ -2309,6 +2493,8 @@ function getLayoutAreas(tamanho) {
 // --- GERENCIAMENTO DE LAYOUT (ABAS E BALÃO FLUTUANTE HOVER) ---
 function updateLayoutBounds() {
   if (!mainWindow) return;
+  // Organizador aberto (painel sobre a área abaixo da barra): acompanha o novo tamanho e volta ao topo das abas reposicionadas.
+  queueMicrotask(() => { try { organizadorHost.ajustar(); } catch (_) {} });
   sincronizarRedator(); // a coluna do Copilot pode ter sido mostrada/ocultada: o ícone nos textos acompanha
   const [totalWidth, totalHeight] = mainWindow.getContentSize();
   const availableHeight = Math.max(0, totalHeight - TITLEBAR_HEIGHT);
@@ -3702,6 +3888,9 @@ function setupTabViewEvents(view, tabData) {
   view.webContents.on('did-finish-load', handleLoadChecks);
   view.webContents.on('dom-ready', handleLoadChecks);
   ligarRedatorNaAba(view.webContents); // ícone do Copilot na linha do cursor (redator-linha.js)
+  menosAbas.ligarNaAba(view.webContents); // "Menos abertura de abas" (menos-abas.js)
+  botoesEproc.ligarNaAba(view.webContents); // Início e Meus Localizadores na barra (botoes-eproc-barra.js)
+  recursosEproc.ligarNaAba(view.webContents); // Smart Localizadores & Eventos e Localizadores Coloridos (eproc-recursos.js)
 }
 
 // Modo de abertura realmente aplicado (Dois monitores sem 2 monitores cai para Integrada).
@@ -4843,6 +5032,7 @@ function publishTabsUpdated() {
       title: singleDisplayTitle,
       url: t.url,
       favicon: t.favicon,
+      role: t.processRole || getProcessRole(t.url) || null, // a barra escolhe o ícone próprio de capa, editor ou árvore
       active: t.id === activeTabId,
       isEmptyState: !!t.isEmptyState,
       chave: 't:' + t.id,
@@ -4855,6 +5045,7 @@ function publishTabsUpdated() {
 
   ultimasEntradasBarra = result;
   mainWindow.webContents.send('tabs-updated', configManager.getRelacionadosEmPilha() ? pilhaRelacionados.colapsar(result, pilhaTopoMemo) : result);
+  publicarBotoesEproc(); // a aba ativa pode ter mudado: mostra ou esconde Início/Meus Localizadores na barra
 }
 
 function getVisualTabGroups() {
@@ -5016,7 +5207,7 @@ function openExtensionOptions(extensionName, coords) {
       roundedCorners: true,
       transparent: false,
       backgroundColor: '#ffffff',
-      hasShadow: true,
+      hasShadow: false,
       show: false,
       skipTaskbar: true,
       resizable: false,
@@ -5087,7 +5278,7 @@ function showDownloadToast(fileName) {
   }[char]));
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}body{margin:0;background:transparent;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
-    #toast{height:34px;display:flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #0a78a4;background:#083c52;color:#fff;box-shadow:0 3px 10px #0005;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #toast{height:34px;display:flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #0a78a4;background:#083c52;color:#fff;box-shadow:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     b{font-weight:600;color:#aeeaff}.ok{color:#77e2a1;font-size:14px}
   </style></head><body><div id="toast"><span class="ok">✓</span><b>Salvo:</b><span>${safeName}</span></div></body></html>`;
   const bounds = mainWindow.getBounds();
@@ -5126,7 +5317,7 @@ function mostrarAviso(texto, nivel = 'info', ms = 3500, naColuna = false, regiao
   const cores = { ok: ['#0f5132', '#77e2a1', '✓'], erro: ['#5c1a1a', '#ff9d9d', '!'], info: ['#083c52', '#aeeaff', '…'] }[nivel] || ['#083c52', '#aeeaff', '…'];
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}body{margin:0;background:transparent;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
-    #t{height:34px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid ${cores[1]}66;background:${cores[0]};color:#fff;box-shadow:0 3px 10px #0005;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #t{height:34px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid ${cores[1]}66;background:${cores[0]};color:#fff;box-shadow:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     i{font-style:normal;color:${cores[1]};font-size:14px}
   </style></head><body><div id="t"><i>${cores[2]}</i><span>${seguro}</span></div></body></html>`;
   const b = mainWindow.getContentBounds();
@@ -5237,7 +5428,13 @@ function setupDownloadManager() {
 function setupIPC() {
   const { createGuardedIpc, isRecordedDownload, isProcessNavigation } = require('./ipc-policy');
   let fastCopilotCaixa = null; // janela da caixa do Fast Copilot (criada adiante)
-  const local = (role, owner, file) => ({ role, contents: owner?.webContents, file: path.join(__dirname, file) });
+  // Janela já destruída (ex.: menu sob demanda liberado após fechado): ler .webContents dela lança erro, e um erro aqui
+  // derrubaria a lista inteira, recusando o IPC de todas as janelas. Destruída = superfície ausente.
+  const local = (role, owner, file) => {
+    let contents = null;
+    try { contents = owner && !(typeof owner.isDestroyed === 'function' && owner.isDestroyed()) ? owner.webContents : null; } catch (_) { contents = null; }
+    return { role, contents, file: path.join(__dirname, file) };
+  };
   const hostIPC = createGuardedIpc(ipcMain, {
     surfaces: () => [
       local('titlebar', mainWindow, 'titlebar/titlebar.html'),
@@ -5250,6 +5447,8 @@ function setupIPC() {
       local('find', findWindow, 'find/find.html'),
       local('spell', spellcheck.getWindow(), 'spellcheck/manage.html'),
       local('fastcopilot', fastCopilotCaixa && fastCopilotCaixa.getWindow(), 'fast-copilot-box/box.html'),
+      local('organizador', organizadorHost.getWindow(), 'organizador/organizador.html'),
+      local('locs', locsPainel.getWindow(), 'locs-painel/locs-painel.html'),
       ...(copilotShellLigado ? [local('copilotshell', colunaCopilot.getView(), 'copilot-shell/shell.html')] : []),
       ...(anfitriaoLigado ? [local('copilotanfitriao', colunaCopilot.getView(), 'copilot-anfitriao/anfitriao.html')] : []),
       ...(cartaoConsentimentoRef && cartaoConsentimentoRef.getView() ? [local('copilotconsent', cartaoConsentimentoRef.getView(), 'copilot-shell/consent-overlay.html')] : []),
@@ -5266,7 +5465,7 @@ function setupIPC() {
       const panel = [...panelViewPool.values()].some(item => item.view?.webContents === wc);
       // Impressão aceita frames filhos reais de uma aba/painel gerenciado (PDF incorporado).
       if (channel === 'superproc:print-pdf') return !!(tab || panel) && wc.mainFrame.framesInSubtree.includes(event.senderFrame);
-      if (channel === 'superproc:modulo-usuario' || channel === 'superproc:abrir-organizador') return !!extOptionsWin && !extOptionsWin.isDestroyed() && wc === extOptionsWin.webContents && !!superprocId && event.senderFrame === wc.mainFrame && String(event.senderFrame.url).startsWith('chrome-extension://' + superprocId + '/popup/');
+      if (channel === 'superproc:modulo-usuario' || channel === 'superproc:abrir-organizador' || channel === 'superproc:modulos-controlados') return !!extOptionsWin && !extOptionsWin.isDestroyed() && wc === extOptionsWin.webContents && !!superprocId && event.senderFrame === wc.mainFrame && String(event.senderFrame.url).startsWith('chrome-extension://' + superprocId + '/popup/');
       if (event.senderFrame !== wc.mainFrame) return false;
       if (channel === 'panel-content-toggle-pin') return panel && sidePanel.isOpen && sidePanel.contentView?.webContents === wc;
       return !!tab && !tab.isEmptyState;
@@ -5274,6 +5473,7 @@ function setupIPC() {
   });
   const recordedDownload = file => isRecordedDownload(file, configManager.getRecentDownloads());
   spellcheck.installIpc(hostIPC, { getParent: () => mainWindow, icon: getBrowserIconPath() });
+  locsPainel.instalarIpc(hostIPC); // painel "Meus Localizadores" (locs-painel-host.js)
   // Módulos .js importados no popup da extensão SuperPROC: gravados na pasta da extensão no perfil (nunca na do pacote).
   hostIPC.handle('superproc:modulo-usuario', (_event, pedido) => {
     const dir = dirSuperprocInstalada();
@@ -5282,9 +5482,14 @@ function setupIPC() {
   });
   // Organizador de grupos (Smart Localizadores / Smart Eventos): abre a página da extensão como aba normal.
   hostIPC.handle('superproc:abrir-organizador', (_event, tipo) => {
+    // Smart controlado pelo navegador: o Organizador é o do navegador (a base é a mesma).
+    if (cfgLigado('smartLocsEventos')) { organizadorHost.abrir(tipo === 'evt' ? 'evt' : 'loc'); return; }
     if (!superprocId) throw Error('A extensão SuperPROC não está carregada.');
     abrirOrganizadorSmart(tipo === 'evt' ? 'evt' : 'loc');
   });
+  // Popup da extensão SuperPROC: quais módulos dela o navegador controla agora (mesmos ids). O popup os bloqueia com o
+  // aviso "CONTROLADO PELO NAVEGADOR"; o orquestrador da extensão lê a mesma lista na marca da página.
+  hostIPC.handle('superproc:modulos-controlados', () => recursosEproc.modulosControlados());
   hostIPC.on('superproc:print-pdf', event => {
     // O frame solicitante é definido pelo Electron, não por dados da página.
     if (event.senderFrame) printToPdf.request(event.sender, event.senderFrame);
@@ -5513,6 +5718,60 @@ function setupIPC() {
     configManager.saveConfig(updated);
     spellcheck.setEnabled(enabled);
     return enabled;
+  });
+  hostIPC.handle('config-set-menos-abas', (event, enabled) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents || typeof enabled !== 'boolean') throw Error('Origem inválida.');
+    const updated = configManager.loadConfig();
+    updated.menosAberturaAbas = enabled;
+    configManager.saveConfig(updated);
+    menosAbas.sincronizar();
+    return enabled;
+  });
+  hostIPC.handle('config-set-botoes-eproc-barra', (event, enabled) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents || typeof enabled !== 'boolean') throw Error('Origem inválida.');
+    const updated = configManager.loadConfig();
+    updated.botoesEprocNaBarra = enabled;
+    configManager.saveConfig(updated);
+    botoesEproc.sincronizar();
+    recursosEproc.sincronizar(); // a marca de módulos controlados inclui o Meus Localizadores da barra
+    return enabled;
+  });
+  // Smart Localizadores & Eventos / Localizadores Coloridos (eproc-recursos.js).
+  for (const [canal, chave] of [['config-set-smart-locs-eventos', 'smartLocsEventos'], ['config-set-localizadores-coloridos', 'localizadoresColoridos']]) {
+    hostIPC.handle(canal, (event, enabled) => {
+      if (!activeDialog || event.sender !== activeDialog.webContents || typeof enabled !== 'boolean') throw Error('Origem inválida.');
+      const updated = configManager.loadConfig();
+      updated[chave] = enabled;
+      configManager.saveConfig(updated);
+      recursosEproc.sincronizar();
+      return enabled;
+    });
+  }
+  // Organizador do navegador: pedido da página (botão Organizar, via tab-preload.js) e canais da janela.
+  hostIPC.on('superproc:organizador-navegador', (event, modulo) => {
+    if (!cfgLigado('smartLocsEventos') && !cfgLigado('localizadoresColoridos')) return;
+    organizadorHost.abrir(modulo === 'evt' ? 'evt' : 'loc');
+  });
+  const canaisOrganizador = { 'org-origens': 'origens', 'org-ler': 'ler', 'org-gravar': 'gravar', 'org-ler-cores': 'lerCores', 'org-gravar-regras': 'gravarRegras', 'org-gravar-cor': 'gravarCor' };
+  for (const [canal, acao] of Object.entries(canaisOrganizador)) {
+    hostIPC.handle(canal, (event, arg) => {
+      const view = organizadorHost.getWindow();
+      if (!view || event.sender !== view.webContents) throw Error('Origem inválida.');
+      return organizadorHost.acoes[acao](arg);
+    });
+  }
+  hostIPC.on('org-fechar', (event) => {
+    const view = organizadorHost.getWindow();
+    if (view && event.sender === view.webContents) organizadorHost.fechar();
+  });
+  // Botões Início / Meus Localizadores da barra (titlebar): hover, saída e clique.
+  hostIPC.on('eproc-botoes-barra-acao', (event, dados) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return;
+    try { acaoBotoesEproc(dados); } catch (_) { /* aba fechada no meio da ação */ }
+  });
+  hostIPC.handle('eproc-botoes-barra-estado', (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { visivel: false };
+    return { visivel: botoesEprocLigado() && !!abaPrincipalEproc() };
   });
   // Switch "Permitir que o Copilot use o conteúdo do navegador" (equivale ao controle 479 de edge://settings/ai).
   hostIPC.handle('config-get-copilot-politicas-ia', (event) => {
@@ -5787,6 +6046,33 @@ function setupIPC() {
         updateLayoutBounds();
         break;
       }
+      case 'set-copilot-modo-editor': {
+        // Chave "Copilot no modo editor": agente de edição na coluna, lendo e reescrevendo o texto do editor da aba.
+        const ligado = configManager.setCopilotModoEditor(data?.ligado !== false);
+        logDebugger('COPILOT_MODO_EDITOR', 'Copilot no modo editor alterado', { ligado });
+        if (modoEditorRef) modoEditorRef.sincronizar().catch(() => {});
+        break;
+      }
+      case 'set-atalho-modo-editor': {
+        // data.atalho = {code,ctrl,alt,shift,meta} ou null (remover). Só o menu CFG envia isto.
+        let mensagemAtalhoEditor = '';
+        if (!data || !data.atalho) {
+          configManager.setAtalhoModoEditor(null);
+          mensagemAtalhoEditor = 'Atalho removido.';
+          logDebugger('COPILOT_MODO_EDITOR', 'Atalho do modo editor removido');
+        } else {
+          const motivo = require('./pdf-para-copilot').motivoDeRecusa(configManager.loadConfig(), data.atalho)
+            || require('./fast-copilot').motivoDeRecusa({ ferramentas: [], jurisprudencia: [], legislacao: [] }, data.atalho, [configManager.getAtalhoColarPdf(), configManager.getAtalhoMinutaCopilot(), configManager.getAtalhoFastCopilot(), configManager.getAtalhoAlteracaoTexto()]);
+          if (motivo) mensagemAtalhoEditor = motivo;
+          else {
+            const gravado = configManager.setAtalhoModoEditor(data.atalho);
+            mensagemAtalhoEditor = gravado ? 'Atalho salvo.' : 'Combinação inválida.';
+            if (gravado) logDebugger('COPILOT_MODO_EDITOR', 'Atalho do modo editor definido');
+          }
+        }
+        if (cfgSendState) cfgSendState({ mensagemAtalhoEditor });
+        break;
+      }
       case 'set-atalho-pdf': {
         // data.atalho = {code,ctrl,alt,shift,meta} ou null (remover). Só o menu CFG envia isto.
         const pdfCopilot = require('./pdf-para-copilot');
@@ -5882,7 +6168,8 @@ function setupIPC() {
         openExtensionOptions('superproc');
         break;
       case 'force-update':
-        forceUpdateExtensions();
+        // Sem `data.nome`: atualiza todas. Com `data.nome` (botão ↻ da linha no submenu Addons): só aquela.
+        forceUpdateExtensions(data && typeof data.nome === 'string' ? data.nome : null);
         break;
       case 'manage-links':
         hideCfgMenu();
@@ -5968,6 +6255,10 @@ function setupIPC() {
         hideCfgMenu();
         showDialog('settings');
         break;
+      case 'open-organizador':
+        hideCfgMenu();
+        organizadorHost.abrir('loc');
+        break;
       case 'clear-cache':
         hideCfgMenu();
         await clearV2Cache();
@@ -5998,21 +6289,27 @@ function setupIPC() {
   });
 
   // --- ATUALIZAÇÃO FORÇADA DE EXTENSÕES DA LOJA (CHROME WEB STORE) ---
-  async function forceUpdateExtensions() {
+  // `somente`: 'superproc', 'azflow' ou 'epryx' para atualizar uma só; null para todas.
+  async function forceUpdateExtensions(somente = null) {
+    if (somente !== null && somente !== 'superproc' && !Object.prototype.hasOwnProperty.call(NOMES_EXTENSAO_LOJA, somente)) return;
     hideCfgMenu();
     const userData = app.getPath('userData'), dados = dadosExtensoesLoja(), linhas = [];
-    if (dirSuperprocInstalada()) {
-      try { const r = extensaoSuperprocLocal.espelhar({ fonte: raizDaExtensao(), destino: destinoSuperproc() }); linhas.push('SuperPROC: ' + (r.copiado ? 'atualizada a partir do pacote.' : 'já está igual ao pacote.')); }
-      catch (err) { linhas.push('SuperPROC: falha ao atualizar — ' + String(err && err.message || err)); }
-    } else linhas.push('SuperPROC: não instalada.');
+    if (!somente || somente === 'superproc') {
+      if (dirSuperprocInstalada()) {
+        try { const r = extensaoSuperprocLocal.espelhar({ fonte: raizDaExtensao(), destino: destinoSuperproc() }); linhas.push('SuperPROC: ' + (r.copiado ? 'atualizada a partir do pacote.' : 'já está igual ao pacote.')); }
+        catch (err) { linhas.push('SuperPROC: falha ao atualizar — ' + String(err && err.message || err)); }
+      } else linhas.push('SuperPROC: não instalada.');
+    }
     for (const [nome, rotulo] of Object.entries(NOMES_EXTENSAO_LOJA)) {
+      if (somente && somente !== nome) continue;
       if (!extensaoInstalador.versaoInstalada(nome, userData)) { linhas.push(rotulo + ': não instalada.'); continue; }
       try {
         const r = await extensaoInstalador.instalar({ nome, userData, idLoja: dados.idsLoja[nome], fetchFn: (u, o) => net.fetch(u, o), chrome: process.versions.chrome });
         linhas.push(r.status === 'instalada' ? rotulo + ': atualizada para ' + r.versao + '.' : rotulo + ': já está na versão mais recente (' + r.versao + ').');
       } catch (err) { linhas.push(rotulo + ': falha ao consultar a loja — ' + String(err && err.message || err)); }
     }
-    await dialog.showMessageBox(mainWindow, { type: 'info', title: 'Atualização das extensões', message: 'Extensões AZflow e Epryx (Chrome Web Store)', detail: linhas.join('\n\n') + '\n\nReinicie o SuperPROC para carregar versões novas.' });
+    const titulo = somente ? 'Atualização — ' + (somente === 'superproc' ? 'SuperPROC' : NOMES_EXTENSAO_LOJA[somente]) : 'Extensões SuperPROC, AZflow e Epryx';
+    await dialog.showMessageBox(mainWindow, { type: 'info', title: 'Atualização das extensões', message: titulo, detail:linhas.join('\n\n') + '\n\nReinicie o SuperPROC para carregar versões novas.' });
   }
 
   // Salvar página da aba ativa
@@ -6469,9 +6766,19 @@ function setupIPC() {
   require('./copilot-teclas').criarTeclasContexto({
     app, BrowserWindow, webContents,
     getMainWindow: () => mainWindow,
-    getAtalhos: () => ({ pdf: configManager.getAtalhoColarPdf(), minuta: configManager.getAtalhoMinutaCopilot() }),
+    getAtalhos: () => ({ pdf: configManager.getAtalhoColarPdf(), minuta: configManager.getAtalhoMinutaCopilot(), ...(colunaCopilotLigada() && configManager.getCopilotModoEditor() ? { editor: configManager.getAtalhoModoEditor() } : {}) }),
     acionar: async (k) => {
       if (k === 'pdf') return envioPdfCopilotRef ? envioPdfCopilotRef.enviar(null) : false;
+      if (k === 'editor') {
+        // Liga/desliga o agente "Editar com o Copilot" na coluna; nada é enviado. Abre a coluna se estiver escondida.
+        if (!modoEditorRef) return false;
+        if (colunaCopilotOculta) { colunaCopilotOculta = false; updateLayoutBounds(); enviarEstadoColuna(true).catch(() => {}); }
+        const r = await modoEditorRef.alternar();
+        if (r === 'ligado') mostrarAviso('Copilot no modo editor: ligado.', 'info', 2500, true);
+        else if (r === 'desligado') mostrarAviso('Copilot no modo editor: desligado.', 'info', 2500, true);
+        else mostrarAviso('Copilot no modo editor indisponível: abra o chat do Copilot na coluna.', 'erro', 4000, true);
+        return r !== 'indisponivel';
+      }
       return fastCopilotRef ? fastCopilotRef.anexarMinuta() : false;
     }
   }).instalar();
@@ -6485,6 +6792,20 @@ function setupIPC() {
     },
     log: (tipo, msg) => logDebugger(tipo, msg)
   }).instalarEmTodos({ app, webContents });
+  // Copilot no modo editor: agente "Editar com o Copilot" na coluna; o Copilot lê a minuta inteira do editor da aba e só os
+  // parágrafos que ele alterar são trocados (Ctrl+Z desfaz). Chave e atalho no menu CFG. Fora do teste de fumaça.
+  modoEditorRef = require('./copilot-modo-editor').criarModoEditor({
+    ehColuna: require('./copilot-column').ehColunaCopilot,
+    ativo: () => !V2_SMOKE && colunaCopilotLigada() && configManager.getCopilotModoEditor(),
+    automatico: () => true,
+    getColunaWc: () => { const v = colunaCopilotLigada() ? colunaCopilot.getView() : null; return v ? v.webContents : null; },
+    getAlvos: () => { // a aba ativa primeiro, depois as demais
+      const ativa = tabs.find(t => t.id === activeTabId);
+      return [ativa, ...tabs.filter(t => t !== ativa)].map(t => (t && t.view && t.view.webContents) || null).filter(Boolean);
+    },
+    log: (tipo, msg, detalhes) => logDebugger(tipo, msg, detalhes)
+  });
+  modoEditorRef.instalarEmTodos({ app, webContents });
 
   // --- CONTEXTO DAS ABAS PARA O COPILOT (host): ContextBroker lê as abas; o exportador monta o Markdown e entrega ao campo da coluna
   // por colagem nativa (sem script nem estilo na página do Copilot). Ctrl+Shift+K = aba ativa; Ctrl+Shift+J = todas as abas.
@@ -6667,6 +6988,15 @@ function setupIPC() {
         }
       });
       adminCopilot = ferramentasCopilot.admin;
+      // EXPERIMENTAL (chave quadros, ligada por padrão): registra só metadados dos quadros do chat (copilot-quadros.jsonl). Segue a chave a cada ciclo.
+      try {
+        const registradorQuadros = require('./copilot-shell/quadros-chat').criarRegistradorQuadros({
+          getColunaWc: () => { const v = colunaCopilotLigada() ? colunaCopilot.getView() : null; return v ? v.webContents : null; },
+          politica: () => ferramentasCopilot.politica().quadros === true, pasta: app.getPath('userData'), log: (tipo, msg) => logDebugger(tipo, msg)
+        });
+        registradorQuadros.iniciar();
+        app.once('will-quit', () => { try { registradorQuadros.parar(); } catch (_) { /* encerrando */ } });
+      } catch (_) { /* sem registrador: o Copilot segue normal */ }
       // Pipe local do harness cli-anything-superproc: só se `pipe` estiver ligado no copilot-admin.json ao iniciar o app.
       if (ferramentasCopilot.politica().pipe) {
         const adminPipe = require('./copilot-shell/admin-pipe');

@@ -9,6 +9,54 @@
 
     let currentKnownHash = '';
 
+    // 0. Início/Meus Localizadores na barra (botoes-eproc-barra.js): com a chave ligada, o host deixa uma marca no
+    // localStorage do eproc. Aqui, antes de qualquer desenho, o CSS já esconde tudo o que for construído com a
+    // identificação desses botões, então eles nunca aparecem na página, nem por um instante. A chave desligada apaga a marca.
+    try {
+      if (/eproc/i.test(window.location.hostname) && localStorage.getItem('__superproc_botoes_eproc_barra') === '1') {
+        const css = '#btn-home, #btn-meus-localizadores { display: none !important; }'
+          + ' div:has(> #btn-home):has(> #btn-meus-localizadores) { display: none !important; }';
+        const injetar = () => {
+          if (document.getElementById('sp-botoes-eproc-barra-cedo')) return true;
+          const raiz = document.head || document.documentElement;
+          if (!raiz) return false;
+          const st = document.createElement('style');
+          st.id = 'sp-botoes-eproc-barra-cedo';
+          st.textContent = css;
+          raiz.appendChild(st);
+          return true;
+        };
+        if (!injetar()) {
+          const obs = new MutationObserver(() => { if (injetar()) obs.disconnect(); });
+          obs.observe(document, { childList: true, subtree: true });
+        }
+      }
+    } catch (_) {}
+
+    // 0b. Módulos que o navegador controla (eproc-recursos.js): publica cedo, com os mesmos ids dos módulos da extensão,
+    // em <html data-superproc-navegador-modulos>. Uma versão futura da extensão poderá ler a marca e mostrar
+    // "CONTROLADO PELO NAVEGADOR" nesses módulos. O host atualiza a lista a cada carga conforme as chaves.
+    try {
+      if (/eproc/i.test(window.location.hostname)) {
+        const lista = JSON.parse(localStorage.getItem('__superproc_navegador_modulos') || '[]');
+        if (Array.isArray(lista) && lista.length) {
+          const marcar = () => {
+            if (!document.documentElement) return false;
+            document.documentElement.setAttribute('data-superproc-navegador-modulos', lista.filter(m => typeof m === 'string').join(' '));
+            return true;
+          };
+          if (!marcar()) {
+            const obs = new MutationObserver(() => { if (marcar()) obs.disconnect(); });
+            obs.observe(document, { childList: true });
+          }
+        }
+        // Pedido de abrir o Organizador do navegador (botões Organizar dos recursos; detail 'loc' ou 'evt').
+        window.addEventListener('superproc:organizador-abrir', (e) => {
+          try { require('electron').ipcRenderer.send('superproc:organizador-navegador', e.detail === 'evt' ? 'evt' : 'loc'); } catch (_) {}
+        });
+      }
+    } catch (_) {}
+
     // 1. Ocultar sinais de automação no DOM do navegador
     if (navigator.webdriver !== undefined) {
       Object.defineProperty(navigator, 'webdriver', {

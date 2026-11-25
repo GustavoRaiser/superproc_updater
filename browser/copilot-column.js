@@ -108,7 +108,7 @@ function classificarTecla(input) {
   return 'bloquear';                                        // Ctrl+W/T/N/Tab/F/P/S/L/+/-/0...
 }
 
-function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, getMainWindow, abrirComoAba = () => {}, log = () => {}, url = URL_COPILOT, preload = null, fallbackUrl = null, diagnosticoNavegacao = false, removerContornoFoco = true, observarColuna, observarJanela = null, observarJanelaEstado = null, observarPagina = null, resolverUrlInicial = null }) {
+function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, getMainWindow, abrirComoAba = () => {}, log = () => {}, url = URL_COPILOT, preload = null, fallbackUrl = null, diagnosticoNavegacao = false, removerContornoFoco = true, observarColuna, observarJanela = null, observarJanelaEstado = null, observarPagina = null, resolverUrlInicial = null, ajustarUrl = null }) {
   let view = null;
   let anexada = false;
   let retomadas = 0;
@@ -209,12 +209,24 @@ function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, g
       wc.once('destroyed', () => clearInterval(relogio));
     }
 
-    // Menu de contexto mínimo: só edição/cópia (nada de voltar, abrir em nova aba, inspecionar).
+    // Menu de contexto enxuto: edição/cópia (nada de voltar nem abrir em nova aba) e, sempre no fim, "Inspecionar este elemento"
+    // (DevTools da própria coluna, em janela separada porque a coluna é estreita). Pedido do responsável em 2026-11-24.
     wc.on('context-menu', (_e, p) => {
       const modelo = p.isEditable
         ? [{ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { type: 'separator' }, { role: 'selectAll' }]
         : (p.selectionText ? [{ role: 'copy' }] : []);
-      if (modelo.length && Menu) Menu.buildFromTemplate(modelo).popup({ window: janela() || undefined });
+      if (modelo.length) modelo.push({ type: 'separator' });
+      modelo.push({
+        label: '🔍 Inspecionar este elemento',
+        click: () => {
+          try {
+            if (wc.isDestroyed()) return;
+            if (!wc.isDevToolsOpened()) wc.openDevTools({ mode: 'detach' });
+            wc.inspectElement(p.x || 0, p.y || 0);
+          } catch (_) { /* sem DevTools nesta coluna */ }
+        }
+      });
+      if (Menu) Menu.buildFromTemplate(modelo).popup({ window: janela() || undefined });
     });
 
     wc.on('render-process-gone', (_e, detalhes) => {
@@ -233,7 +245,8 @@ function criarColunaCopilot({ WebContentsView, Menu, getSession, getUserAgent, g
       if (!principal && codigo !== -3) { log('COPILOT_ANFITRIAO', 'Falha no iframe: ' + codigo); usarModoDireto(); }
     });
     // resolverUrlInicial (opcional): decide a URL antes de carregar (ex.: pular a tela de entrada quando já há sessão Microsoft).
-    const carregar = (u) => { if (!wc.isDestroyed()) wc.loadURL(u).catch(() => { usarModoDireto(); }); };
+    // ajustarUrl (opcional): última palavra sobre o endereço da carga inicial (ex.: modo desenvolvedor do chat, EXPERIMENTAL); nunca lança.
+    const carregar = (u) => { if (wc.isDestroyed()) return; let alvo = u; try { if (typeof ajustarUrl === 'function') alvo = ajustarUrl(u) || u; } catch (_) { alvo = u; } wc.loadURL(alvo).catch(() => { usarModoDireto(); }); };
     if (modoDireto && fallbackUrl) carregar(fallbackUrl);
     else if (typeof resolverUrlInicial === 'function') Promise.resolve().then(() => resolverUrlInicial(url)).then((u) => carregar(typeof u === 'string' && u ? u : url), () => carregar(url));
     else carregar(url);

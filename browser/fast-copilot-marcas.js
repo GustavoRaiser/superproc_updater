@@ -30,12 +30,12 @@ function naPaginaInstalarMarcas(cfg) {
   estilo.id = PREF + 'estilo';
   estilo.textContent = `
     .${PREF}borracha{position:fixed;width:14px;height:14px;padding:0;margin:0;border:1px solid #b7a100;border-radius:50%;background:#fffde7;
-      box-shadow:0 1px 3px rgba(0,0,0,.25);cursor:pointer;pointer-events:auto;display:grid;place-items:center}
+      box-shadow:none;cursor:pointer;pointer-events:auto;display:grid;place-items:center}
     .${PREF}borracha:hover{background:#fff59d;border-color:#8a7a00}
     .${PREF}borracha svg{width:9px;height:9px;display:block}
     #${PREF}aba{position:fixed;pointer-events:auto;background:#fff59d;color:#5b4f00;border:1px solid #b7a100;border-top:none;
       border-radius:0 0 5px 5px;font:600 10px/14px Arial,sans-serif;padding:0 5px;white-space:nowrap;cursor:default}
-    #${PREF}menu{position:fixed;pointer-events:auto;background:#fff;border:1px solid #9aa3ad;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.22);padding:3px}
+    #${PREF}menu{position:fixed;pointer-events:auto;background:#fff;border:1px solid #9aa3ad;border-radius:4px;box-shadow:none;padding:3px}
     #${PREF}menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:5px 10px;font:12px Arial,sans-serif;cursor:pointer;border-radius:3px}
     #${PREF}menu button:hover,#${PREF}menu button:focus{background:#eef3f8;outline:none}`;
   document.head.appendChild(estilo);

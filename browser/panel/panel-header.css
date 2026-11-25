@@ -26,7 +26,7 @@ body {
   background: #171a21;
   border-left: 3px solid #057ba9;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: -8px 0 20px rgba(0, 0, 0, 0.6);
+  box-shadow: none;
   transition: border-left 0.2s ease;
 }
 
@@ -48,13 +48,13 @@ body {
 
 #panel-header-container.pinned #resizer-handle {
   background: #00a2ff !important;
-  box-shadow: 0 0 10px rgba(0, 162, 255, 0.9) !important;
+  box-shadow: none !important;
 }
 
 #resizer-handle:hover,
 #resizer-handle.dragging {
   background: #057ba9;
-  box-shadow: 0 0 8px rgba(5, 123, 169, 0.8);
+  box-shadow: none;
 }
 
 .panel-info-group {

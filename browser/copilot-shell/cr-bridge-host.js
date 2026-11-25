@@ -64,7 +64,9 @@ const EV = Object.freeze({
   abaAtivada: 'chrome.tabs.onActivated',
   abaAtualizada: 'chrome.tabs.onUpdated',
   abaRemovida: 'chrome.tabs.onRemoved',
-  abaCriada: 'chrome.tabs.onCreated'
+  abaCriada: 'chrome.tabs.onCreated',
+  // esquema copilotBridgePrivate.toolServers da msedge.dll 158: onEnablementChanged(serverRef)
+  habilitacao: 'chrome.copilotBridgePrivate.toolServers.onEnablementChanged'
 });
 const EVENTOS_DE_ABA = new Set([EV.abaAtivada, EV.abaAtualizada, EV.abaRemovida, EV.abaCriada]);
 // Eventos do canal legado (copilot-bridge) atendidos aqui.
@@ -234,7 +236,8 @@ function criarPonteCr({ broker, consentimento: consentimentoReal, mapa, agora = 
   //  - Edge.Mcp.GetSupportedMcpServers / CallToolOnServer / ReadMcpResourceFromServer na porta legada copilot-bridge:
   //    { servers } e { data: <JSON em texto> }. Cada servidor segue o tipo McpServerInfo lido no esquema copilotBridgePrivate.mcp embutido
   //    na msedge.dll 158.0.4370.33: { serverId, name?, version?, description?, tools: [{ name, description, inputSchema, outputSchema?,
-  //    annotations? }] } (até 2026-11-21 a ponte devolvia "id", por hipótese; o campo certo é "serverId").
+  //    annotations? }] } (até 2026-11-21 a ponte devolvia "id", por hipótese; o campo certo é "serverId"). Desde 2026-11-24 o texto em
+  //    `data` de CallToolOnServer é um CallToolResult do MCP (ver resultadoMcp) e as ferramentas levam outputSchema e as cinco dicas.
   //  - toolServers.getEnablement(documentId, serverRef) -> { enabled, reason }, com reason em enabled | userNotEnabled | rolloutDisabled |
   //    blockedByTenantPolicy | policyUnavailable | unavailableInPrivateOrGuest | unknownToolServer | unavailable (esquema da DLL 158).
   //    HIPÓTESE: serverRef é o serverId; a rota na extensão-ponte da 158 não foi lida (a da 157 não tem toolServers).
@@ -365,10 +368,54 @@ function criarPonteCr({ broker, consentimento: consentimentoReal, mapa, agora = 
   const mcpLigado = () => !!(F.admin && permitida(F.mcp));
   function servidoresMcp() {
     if (!mcpLigado()) return [];
-    // annotations no vocabulário do MCP: leitura não altera nada; destrutiva apaga/fecha (e sempre pede confirmação à pessoa).
+    // annotations no vocabulário do MCP (ToolAnnotations): leitura não altera nada; destrutiva apaga/fecha (e sempre pede confirmação à
+    // pessoa). As cinco dicas vão SEMPRE explícitas, porque o cliente presume o pior quando faltam (destructiveHint e openWorldHint
+    // ausentes valem true). O título vai dentro de annotations: McpToolDescriptor da DLL 158 não tem `title` no nível da ferramenta.
+    // outputSchema (campo opcional do McpToolDescriptor) descreve o structuredContent devolvido por CallToolOnServer.
     const ferramentasAtivas = F.admin.catalogo().filter((x) => x.annotations && x.annotations.enabled).map((x) => ({ name: x.name, description: x.description, inputSchema: x.inputSchema,
-      annotations: { readOnlyHint: x.annotations.category === 'leitura', destructiveHint: x.annotations.category === 'destrutiva' } }));
+      ...(ehObjeto(x.outputSchema) ? { outputSchema: x.outputSchema } : {}),
+      annotations: { ...(typeof x.title === 'string' && x.title ? { title: x.title } : {}), readOnlyHint: x.annotations.category === 'leitura', destructiveHint: x.annotations.category === 'destrutiva',
+        idempotentHint: x.annotations.idempotent === true, openWorldHint: x.annotations.openWorld === true } }));
     return ferramentasAtivas.length ? [{ serverId: SERVIDOR_MCP, name: 'SuperPROC', version: '1.0.0', description: 'Administração do navegador SuperPROC (abas, histórico, acesso rápido).', tools: ferramentasAtivas }] : [];
+  }
+  // Resultado de ferramenta no formato CallToolResult do MCP: { content: [{ type:'text', text }], structuredContent?, isError }.
+  // Falha de execução (política desligada, recusa da pessoa, argumento inválido...) NÃO é erro de protocolo: volta como resultado com
+  // isError:true e o motivo em texto, para o modelo entender o que houve e poder corrigir o pedido. structuredContent só acompanha
+  // ferramenta que anunciou outputSchema (as demais devolvem só o texto, o que evita duplicar corpos grandes de página).
+  // HIPÓTESE: a página entrega `data` a um cliente MCP (getMCPClient(id).callTool, mcp-local-contrato-158.md, evidência 4); a camada
+  // entre Edge.Mcp.* e esse cliente não foi observada. Até 2026-11-24 `data` levava o objeto do AdminBroker ({ ok, data } / { ok, code }).
+  const MOTIVO_MCP = Object.freeze({
+    POLICY_DISABLED: 'Esta ação está desligada nas configurações do SuperPROC.',
+    USER_DENIED: 'A pessoa não autorizou esta ação.',
+    INVALID_ARGS: 'Argumentos inválidos para esta ferramenta; confira o inputSchema.',
+    NOT_FOUND: 'O item indicado não existe mais (aba fechada ou identificador desatualizado); liste de novo antes de repetir.',
+    URL_NOT_ALLOWED: 'Endereço não permitido: só http(s), sem usuário nem senha.',
+    UNSUPPORTED: 'Operação indisponível nesta instalação do SuperPROC.',
+    RATE_LIMITED: 'Muitas chamadas em pouco tempo; aguarde um minuto.',
+    UNKNOWN_TOOL: 'Ferramenta desconhecida.',
+    FAILED: 'A ferramenta falhou ao executar.'
+  });
+  function resultadoMcp(nomeFerramenta, r) {
+    if (!r || r.ok !== true) {
+      const codigo = r && typeof r.code === 'string' && Object.hasOwn(MOTIVO_MCP, r.code) ? r.code : 'FAILED';
+      return { content: [{ type: 'text', text: MOTIVO_MCP[codigo] + ' (' + codigo + ')' }], isError: true };
+    }
+    const dado = r.data === undefined ? {} : r.data;
+    let texto;
+    try { texto = JSON.stringify(dado); } catch (_) { return { content: [{ type: 'text', text: MOTIVO_MCP.FAILED + ' (FAILED)' }], isError: true }; }
+    const temEsquema = F.admin.catalogo().some((x) => x.name === nomeFerramenta && ehObjeto(x.outputSchema));
+    return { content: [{ type: 'text', text: texto }], ...(temEsquema && ehObjeto(dado) ? { structuredContent: dado } : {}), isError: false };
+  }
+  // toolServers.onEnablementChanged(serverRef): avisa a página quando o servidor passa a existir ou deixa de existir, ou quando a lista
+  // de ferramentas anunciadas muda (chave mcp, categorias do copilot-admin.json). Conferido no mesmo passo do vigia de abas, enquanto
+  // houver assinante; a primeira conferência só guarda o estado (nada é emitido sem mudança observada).
+  let habilitacaoVista = null;
+  function conferirHabilitacao() {
+    let atual;
+    try { const s = servidoresMcp(); atual = s.length ? s[0].tools.map((t) => t.name).join(',') : ''; } catch (_) { return; }
+    const mudou = habilitacaoVista !== null && atual !== habilitacaoVista;
+    habilitacaoVista = atual;
+    if (mudou) { reg('MCP_HABILITACAO_MUDOU'); emitir(EV.habilitacao, [SERVIDOR_MCP]); }
   }
   // toolServers.getEnablement: o servidor do SuperPROC está habilitado quando a pessoa ligou a chave mcp; qualquer outro é desconhecido.
   function habilitacaoDoServidor(args) {
@@ -390,7 +437,7 @@ function criarPonteCr({ broker, consentimento: consentimentoReal, mapa, agora = 
     if (!ehObjeto(argumentos) || typeof args.toolName !== 'string') { contar(eventName, false); erroMcp('invalid arguments'); return; }
     const marca = geracao;
     Promise.resolve().then(() => F.admin.chamar(args.toolName, argumentos)).catch(() => ({ ok: false, code: 'FAILED' }))
-      .then((r) => { if (marca !== geracao) return; contar(eventName, !!(r && r.ok)); postar(porta, { eventName, requestId, args: { data: JSON.stringify(r) } }); });
+      .then((r) => { if (marca !== geracao) return; contar(eventName, !!(r && r.ok)); postar(porta, { eventName, requestId, args: { data: JSON.stringify(resultadoMcp(args.toolName, r)) } }); });
   }
 
   // ---- "Browse with Copilot": sonda de ações (opt-in, nada é executado) ------------------------------------------------
@@ -639,12 +686,14 @@ function criarPonteCr({ broker, consentimento: consentimentoReal, mapa, agora = 
   }
 
   const haAssinanteDeAbas = () => portasApi().some((p) => [...p.assinaturas].some((e) => EVENTOS_DE_ABA.has(e)));
+  const haAssinanteDeHabilitacao = () => portasApi().some((p) => p.assinaturas.has(EV.habilitacao));
   function ajustarVigia() {
-    if (haAssinanteDeAbas() || saidaContexto) {
+    if (haAssinanteDeAbas() || saidaContexto || haAssinanteDeHabilitacao()) {
       if (vigia) return;
       retrato = null;
       conferirAbas();
-      vigia = definirIntervalo(() => { conferirAbas(); }, intervaloAbasMs);
+      conferirHabilitacao();
+      vigia = definirIntervalo(() => { conferirAbas(); if (haAssinanteDeHabilitacao()) conferirHabilitacao(); }, intervaloAbasMs);
       if (vigia && typeof vigia.unref === 'function') vigia.unref();
     } else if (vigia) { limparIntervalo(vigia); vigia = null; retrato = null; }
   }
@@ -1018,6 +1067,7 @@ function criarPonteCr({ broker, consentimento: consentimentoReal, mapa, agora = 
     pediuPorContaPropria = false;
     portas.clear();
     ultimoContexto = null; // a página nova (ou a mesma, reconectando) recebe a lista de novo
+    habilitacaoVista = null; // página nova: a primeira conferência volta a só guardar o estado
     ajustarVigia();
     consentimento.cancelarPendentes?.();
   }
@@ -1043,7 +1093,7 @@ function criarPonteCr({ broker, consentimento: consentimentoReal, mapa, agora = 
     };
   }
 
-  return { conectar, receber, desconectar, chamarUmaVez, anotar, reiniciar, encerrar, diagnostico, conferirAbas, definirSaidaContexto, montarContexto };
+  return { conectar, receber, desconectar, chamarUmaVez, anotar, reiniciar, encerrar, diagnostico, conferirAbas, conferirHabilitacao, definirSaidaContexto, montarContexto };
 }
 
 // Transporte: liga os canais IPC do preload da coluna (cr-bridge-preload.js) à ponte. Só o quadro principal da

@@ -1,5 +1,5 @@
 'use strict';
-// Atalhos dos botões PDF e Minuta do Copilot (host). As combinações vêm do menu CFG e valem com o foco em QUALQUER página
+// Atalhos dos botões PDF e Minuta do Copilot e do modo editor (host). As combinações vêm do menu CFG e valem com o foco em QUALQUER página
 // da janela principal do SuperPROC (abas, árvore, editor, coluna do Copilot). A tecla aciona o envio na hora (keyDown);
 // segurar a tecla (auto-repeat) não repete o envio. Dependências injetadas para testar sem Electron.
 const core = require('./quick-shortcut-core');
@@ -12,7 +12,7 @@ function criarTeclasContexto({ app, BrowserWindow, webContents, getMainWindow, g
   function aoTecla(event, input, wc) {
     if (!input || !ativo() || input.type !== 'keyDown') return false;
     const a = getAtalhos() || {};
-    const k = ['pdf', 'minuta'].find((n) => { const s = core.normalizarSalvo(a[n]); return s && core.combina(input, s); });
+    const k = Object.keys(a).find((n) => { const s = core.normalizarSalvo(a[n]); return s && core.combina(input, s); });
     if (!k) return false;
     const principal = getMainWindow();
     if (!principal || principal.isDestroyed()) return false;

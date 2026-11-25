@@ -6,7 +6,12 @@
  * Onde roda: páginas do eproc que têm o botão "Meus Localizadores".
  * Dados (localStorage do eproc): eproc_locs_grupos_lista (grupos), eproc_locs_estrutura_ordem ({ "<grupo>": [nomes] })
  *   e eproc_locs_dados_cache (cache dos localizadores e contagens, refeito a partir da própria página).
+ * Cores: as mesmas dos Localizadores Coloridos, lidas do chrome.storage da extensão (cores próprias, cores do AZflow e
+ *   regras por grupo do Smart Localizadores). Só leitura; editar as cores continua sendo no Colorido/Organizador.
  */
+
+import { lerLocal, lerOrigem, aoMudarEspelho } from '../../core/smartorg.js';
+import { lerRegrasGrupos, aoMudarRegrasGrupos } from '../../core/coresgrupos.js';
 
 export default {
     id: 'painel_menu_lateral_locs',
@@ -65,7 +70,9 @@ export default {
 
                 /* Colunas montadas por script: os grupos seguem a ordem do usuário e as colunas ficam equilibradas */
                 .quick-locs-columns { display: flex; align-items: flex-start; gap: 12px; padding: 4px 12px 8px; }
-                .quick-locs-col { width: 255px; flex: none; }
+                /* A coluna ocupa a altura toda: o espaço vazio abaixo dos grupos também recebe a soltura (vai ao fim do último grupo). */
+                .quick-locs-col { width: 255px; flex: none; align-self: stretch; padding-bottom: 8px; }
+                .quick-group-wrapper.drag-over-fim { box-shadow: inset 0 -2px 0 #0056b3; }
                 .quick-group-wrapper { width: 100%; margin-bottom: 10px; }
                 .quick-locs-nores { padding: 24px 12px; text-align: center; color: #6c757d; display: none; }
 
@@ -80,9 +87,10 @@ export default {
 
                 .quick-loc-item { width: 100%; height: 28px; margin-bottom: 2px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; box-sizing: border-box; cursor: pointer !important; user-select: none; text-decoration: none !important; }
                 .quick-loc-item:hover { background-color: #f1f3f5; border-color: #ced4da; text-decoration: none !important; }
-                .quick-loc-row { display: flex; align-items: baseline; gap: 4px; }
-                .quick-loc-row .quick-loc-item { flex: 1; min-width: 0; }
-                .quick-loc-mover { max-width: 70px; font: inherit; }
+                /* Cores dos Localizadores Coloridos (AZflow > própria > grupo), lidas do chrome.storage */
+                .quick-loc-item.is-colorido { background-color: var(--loc-bg) !important; border-color: transparent !important; }
+                .quick-loc-item.is-colorido:hover { background-color: var(--loc-bg) !important; filter: brightness(0.93); }
+                .quick-loc-item.is-colorido .quick-loc-name, .quick-loc-item.is-colorido .quick-loc-count { color: var(--loc-tx) !important; }
                 .quick-loc-item:focus-visible { outline: 2px solid #0056b3; outline-offset: -2px; }
                 .quick-loc-item.dragging { opacity: 0.4; }
                 .quick-loc-item.drag-over-top { border-top: 2px solid #0056b3 !important; }
@@ -138,6 +146,77 @@ export default {
         const ESPACO_COLUNAS = 12;
 
         const normalizarTexto = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+        // ---- Cores dos Localizadores Coloridos (mesma base e mesma precedência: AZflow > própria > grupo) ----
+        // Chaves por nome normalizado como no localizadores_coloridos.js; o grupo vem do catálogo do Smart Localizadores.
+        const normCor = (s) => String(s).normalize('NFC').replace(/️/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const CHAVE_COR_PROPRIA = 'superproc_organizador_loc_cor:' + location.origin;
+        const CHAVE_COR_AZ = 'superproc_organizador_loc_az:' + location.origin;
+        let coresProprias = {}, coresAZ = {}, regrasGrupos = {}, grupoPorTexto = new Map();
+
+        function corDoTexto(hex) {
+            if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return '#ffffff';
+            const n = parseInt(hex.slice(1), 16);
+            return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 >= 128 ? '#212529' : '#ffffff';
+        }
+
+        function corDoLocalizador(curto, completo) {
+            const az = coresAZ[normCor(curto)];
+            if (az && az.cor) return { bg: az.cor, tx: az.tx || '#ffffff' };
+            const propria = coresProprias[normCor(curto)];
+            if (propria && propria.cor) return { bg: propria.cor, tx: propria.tx || corDoTexto(propria.cor) };
+            const grupo = grupoPorTexto.get(normCor(completo)) || grupoPorTexto.get(normCor(curto));
+            const rg = grupo && regrasGrupos[grupo];
+            if (rg && rg.cor) return { bg: rg.cor, tx: rg.tx || corDoTexto(rg.cor) };
+            return null;
+        }
+
+        function pintarItem(el) {
+            const cor = corDoLocalizador(el.dataset.locCurto || '', el.dataset.locCompleto || '');
+            el.classList.toggle('is-colorido', !!cor);
+            if (cor) { el.style.setProperty('--loc-bg', cor.bg); el.style.setProperty('--loc-tx', cor.tx); }
+            else { el.style.removeProperty('--loc-bg'); el.style.removeProperty('--loc-tx'); }
+        }
+
+        function repintarPainel() {
+            document.querySelectorAll('#flyout-quick-localizadores .quick-loc-item').forEach(pintarItem);
+        }
+
+        async function carregarCores() {
+            try {
+                const lidas = await chrome.storage.local.get([CHAVE_COR_PROPRIA, CHAVE_COR_AZ]);
+                coresProprias = lidas[CHAVE_COR_PROPRIA] || {};
+                coresAZ = lidas[CHAVE_COR_AZ] || {};
+            } catch (_) { coresProprias = {}; coresAZ = {}; }
+            try {
+                regrasGrupos = await lerRegrasGrupos(location.origin);
+                const local = lerLocal('loc');
+                const espelho = await lerOrigem('loc', location.origin);
+                const textoPorId = new Map(((espelho && espelho.catalogo) || []).map(c => [c.value, c.text]));
+                const mapa = new Map();
+                for (const g of local.grupos) {
+                    if (g === 'Sem Grupo' || g === 'Ocultos') continue;
+                    for (const id of local.estrutura[g] || []) {
+                        const texto = textoPorId.get(id);
+                        if (!texto) continue;
+                        mapa.set(normCor(texto), g);
+                        const curto = texto.split(/\s+-\s+/)[0];
+                        if (!mapa.has(normCor(curto))) mapa.set(normCor(curto), g);
+                    }
+                }
+                grupoPorTexto = mapa;
+            } catch (_) { /* sem Smart Localizadores: fica só com as cores próprias e do AZflow */ }
+            repintarPainel();
+        }
+
+        carregarCores();
+        try {
+            chrome.storage.onChanged.addListener((mudancas, area) => {
+                if (area === 'local' && (mudancas[CHAVE_COR_PROPRIA] || mudancas[CHAVE_COR_AZ])) carregarCores();
+            });
+            aoMudarRegrasGrupos((origem) => { if (origem === location.origin) carregarCores(); });
+            aoMudarEspelho('loc', (origem) => { if (origem === location.origin) carregarCores(); });
+        } catch (_) {}
 
         // Divide a lista (na ordem do usuário) em até `n` colunas contíguas, minimizando a altura da maior.
         function particionarEmColunas(alturas, n) {
@@ -230,26 +309,55 @@ export default {
                 setTimeout(() => { if (redesenhoPendente && !arrasteAtivo) renderizarFlyout(...redesenhoPendente); }, 0);
             }, true);
 
-            btnOriginal.addEventListener('mouseenter', () => {
-                hoverTimer = setTimeout(() => { 
-                    atualizarPosicao();
-                    abrirMenuFlyout(flyout, urlAlvo, false); 
-                }, 150); 
-            });
-            
-            btnOriginal.addEventListener('mouseleave', () => { 
-                if (hoverTimer) clearTimeout(hoverTimer); 
-            });
-            
-            flyout.addEventListener('mouseenter', () => { 
-                if (hoverTimer) clearTimeout(hoverTimer); 
-            });
-            
-            flyout.addEventListener('mouseleave', () => { 
-                hoverTimer = setTimeout(() => { 
+            // Zona segura do hover: o retângulo que vai do topo do botão até a base do painel, na largura do painel
+            // (somada à do botão). Atravessar a faixa entre o botão e o painel, ou subir pela área acima do painel até o
+            // cabeçalho, não fecha o menu; só fecha quando o ponteiro fica fora dessa zona por 400 ms.
+            let fecharTimer = null;
+            const MARGEM_ZONA = 6;
+            function dentroDaZonaSegura(x, y) {
+                if (flyout.style.display !== 'block') return false;
+                const f = flyout.getBoundingClientRect();
+                const b = btnOriginal.getBoundingClientRect();
+                const esq = Math.min(f.left, b.left) - MARGEM_ZONA;
+                const dir = Math.max(f.right, b.right) + MARGEM_ZONA;
+                const topo = Math.min(f.top, b.top) - MARGEM_ZONA;
+                const base = f.bottom + MARGEM_ZONA;
+                return x >= esq && x <= dir && y >= topo && y <= base;
+            }
+            function cancelarFechamento() { if (fecharTimer) { clearTimeout(fecharTimer); fecharTimer = null; } }
+            function agendarFechamento() {
+                if (fecharTimer) return;
+                fecharTimer = setTimeout(() => {
+                    fecharTimer = null;
                     if (draggedItemNome || draggedGrupoNome || flyout.contains(document.activeElement)) return;
-                    flyout.style.display = 'none'; 
-                }, 400); 
+                    flyout.style.display = 'none';
+                }, 400);
+            }
+            document.addEventListener('mousemove', (e) => {
+                if (flyout.style.display !== 'block') { cancelarFechamento(); return; }
+                if (dentroDaZonaSegura(e.clientX, e.clientY)) cancelarFechamento();
+                else agendarFechamento();
+            }, { passive: true });
+            // Ponteiro saiu da janela (ex.: para a barra do navegador): conta como fora da zona.
+            document.documentElement.addEventListener('mouseleave', () => {
+                if (flyout.style.display === 'block') agendarFechamento();
+            });
+
+            btnOriginal.addEventListener('mouseenter', () => {
+                cancelarFechamento();
+                hoverTimer = setTimeout(() => {
+                    atualizarPosicao();
+                    abrirMenuFlyout(flyout, urlAlvo, false);
+                }, 150);
+            });
+
+            btnOriginal.addEventListener('mouseleave', () => {
+                if (hoverTimer) clearTimeout(hoverTimer);
+            });
+
+            flyout.addEventListener('mouseenter', () => {
+                if (hoverTimer) clearTimeout(hoverTimer);
+                cancelarFechamento();
             });
 
             btnOriginal.addEventListener('click', (e) => {
@@ -388,7 +496,6 @@ export default {
             if (arrasteAtivo) { redesenhoPendente = [flyout, urlOriginal]; return; }
             redesenhoPendente = null;
             const elementos = prepararListaParaRender();
-            const destinos = [...new Set([...elementos.filter(e => e.tipo === 'HEADER').map(e => e.nome), 'Sem Grupo'])];
             const containerFlow = document.createElement('div');
             containerFlow.className = 'quick-locs-columns';
 
@@ -401,6 +508,7 @@ export default {
                 if (elem.tipo === 'HEADER') {
                     currentGroupWrapper = document.createElement('div');
                     currentGroupWrapper.className = 'quick-group-wrapper';
+                    currentGroupWrapper.dataset.grupo = elem.nome;
                     currentGroupWrapper.addEventListener('drop', (e) => {
                         if (!draggedItemNome || e.target.closest('.quick-loc-item')) return;
                         e.preventDefault();
@@ -500,8 +608,14 @@ export default {
                     
                     itemDiv.innerHTML = `<span class="quick-loc-name">${item.nomeCurto}</span><span class="quick-loc-count">${item.qtdTexto}</span>`;
 
-                    itemDiv.addEventListener('dragstart', (e) => { 
-                        e.stopPropagation();
+                    // Convivência com o AZflow (recurso "Gestos", eproc-gestos.js): ele liga um dragstart em todo <a href> do
+                    // eproc e troca effectAllowed para 'link' e o text/plain para a URL. Com 'link' o drop "move" é recusado e
+                    // o drop no document vira "abrir em outro monitor" — por isso só os itens com processos (que têm href)
+                    // falhavam. A marca abaixo faz o Gestos ignorar o item; o listener em captura roda antes dos listeners
+                    // normais do próprio link e o stopImmediatePropagation impede que algum outro reescreva o arraste.
+                    itemDiv.dataset.azflowGestosSetup = 'true';
+                    itemDiv.addEventListener('dragstart', (e) => {
+                        e.stopImmediatePropagation();
                         draggedItemNome = item.nomeCompleto; arrasteAtivo = true;
                         draggedGrupoNome = null; 
                         itemDiv.classList.add('dragging');
@@ -509,7 +623,7 @@ export default {
                         e.dataTransfer.clearData();
                         e.dataTransfer.effectAllowed = 'move';
                         e.dataTransfer.setData('text/plain', item.nomeCompleto);
-                    });
+                    }, true);
                     
                     itemDiv.addEventListener('dragend', () => { 
                         draggedGrupoNome = null;
@@ -550,22 +664,10 @@ export default {
                         } 
                     });
                     
+                    itemDiv.dataset.locCurto = item.nomeCurto;
+                    itemDiv.dataset.locCompleto = item.nomeCompleto;
+                    pintarItem(itemDiv);
                     wrapperDiv.appendChild(itemDiv);
-                    if (destinos.length > 1) {
-                        wrapperDiv.className = 'quick-loc-row';
-                        const mover = document.createElement('select');
-                        mover.className = 'quick-loc-mover';
-                        mover.title = 'Mover para grupo';
-                        mover.setAttribute('aria-label', 'Mover ' + item.nomeCurto + ' para grupo');
-                        mover.add(new Option('Mover…', ''));
-                        for (const destino of destinos) {
-                            if (destino !== elem.grupo) mover.add(new Option(destino, destino));
-                        }
-                        mover.addEventListener('change', () => {
-                            if (mover.value) moverItemParaGrupo(item.nomeCompleto, mover.value, 0, flyout, urlOriginal);
-                        });
-                        wrapperDiv.appendChild(mover);
-                    }
                     if (grupoAtual) {
                         grupoAtual.itens.push({ el: wrapperDiv, texto: normalizarTexto(item.nomeCompleto), vazio: !!item.isEmpty, link: (item.link && !item.isEmpty) ? item.link : null });
                         grupoAtual.total += parseInt(String(item.qtdTexto).replace(/\D/g, ''), 10) || 0;
@@ -633,6 +735,24 @@ export default {
                     const col = document.createElement('div');
                     col.className = 'quick-locs-col';
                     indices.forEach(i => col.appendChild(visiveis[i].el));
+                    // Soltar no espaço vazio da coluna (fora de um grupo): vai para o fim do último grupo dessa coluna.
+                    const ultimoGrupo = () => [...col.querySelectorAll(':scope > .quick-group-wrapper')].pop() || null;
+                    const limparFim = () => col.querySelectorAll('.drag-over-fim').forEach(el => el.classList.remove('drag-over-fim'));
+                    col.addEventListener('dragover', (e) => {
+                        if (!draggedItemNome) return;
+                        const alvo = ultimoGrupo();
+                        limparFim();
+                        if (alvo && !e.target.closest('.quick-group-wrapper')) alvo.classList.add('drag-over-fim');
+                    });
+                    col.addEventListener('dragleave', (e) => { if (!col.contains(e.relatedTarget)) limparFim(); });
+                    col.addEventListener('drop', (e) => {
+                        limparFim();
+                        if (!draggedItemNome || e.target.closest('.quick-group-wrapper')) return;
+                        const alvo = ultimoGrupo();
+                        if (!alvo) return;
+                        e.preventDefault();
+                        moverItemParaGrupo(draggedItemNome, alvo.dataset.grupo, Number.MAX_SAFE_INTEGER, flyout, urlOriginal);
+                    });
                     containerFlow.appendChild(col);
                 });
                 semResultado.style.display = visiveis.length ? 'none' : 'block';

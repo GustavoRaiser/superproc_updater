@@ -408,7 +408,7 @@ function noIsoladoLinha(cfg, aj) {
   function novoPainel(largura) {
     if (painel) painel.remove();
     acoesProposta = null;
-    painel = criar('div', BASE + 'position:fixed;z-index:2147483647;width:' + largura + 'px;max-width:92vw;background:#fff;border:1px solid #d0d7de;border-radius:12px;box-shadow:0 10px 32px rgba(0,0,0,.25);overflow:hidden');
+    painel = criar('div', BASE + 'position:fixed;z-index:2147483647;width:' + largura + 'px;max-width:92vw;background:#fff;border:1px solid #d0d7de;border-radius:12px;box-shadow:none;overflow:hidden');
     painel.id = cfg.menuId; painel.setAttribute('role', 'dialog'); painel.setAttribute('aria-label', 'Copilot: alterar o texto');
     ['keydown', 'keyup', 'keypress'].forEach((t) => painel.addEventListener(t, (e) => { e.stopPropagation(); if (t === 'keydown' && e.key === 'Escape' && e.isTrusted) { e.preventDefault(); fecharPainel(true); } }));
     D.documentElement.appendChild(painel); realce(true);

@@ -119,9 +119,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- 2. SISTEMA DE ABAS (COM SUPORTE A VISUALIZAÇÃO DIVIDIDA / SPLIT VIEW) ---
   const defaultFavicon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ba7b9"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>';
-  const capaFavicon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%230284c7"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>';
-  const arvoreFavicon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2316a34a"><path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10H4v3h7v-3h2v3h7v-3h-7V8h2v3h7z"/></svg>';
-  const editorFavicon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23d97706"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+  // Ícones próprios do navegador para as abas de processo. O papel vem do host, pela URL (capa, editor ou árvore); o favicon da
+  // página não entra: sem o AZflow ele é o mesmo "1G" em todas e vira um quadrado liso na aba inativa. Desenho só de traço e
+  // preenchimento, sem fundo, para continuar legível quando a aba inativa o pinta de branco.
+  const capaFavicon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%230284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M3.5 9h17"/><path d="M7.5 13h9M7.5 16.5h6"/></svg>';
+  const arvoreFavicon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%2316a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="6" rx="1.5" fill="%2316a34a" stroke="none"/><path d="M6.75 9v9.75h5.5M6.75 12.75h5.5"/><rect x="13.25" y="10.5" width="7.75" height="4.5" rx="1.25" fill="%2316a34a" stroke="none"/><rect x="13.25" y="16.5" width="7.75" height="4.5" rx="1.25" fill="%2316a34a" stroke="none"/></svg>';
+  const editorFavicon = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15.5 15 5.5a2.1 2.1 0 0 1 3 3L8 18.5l-4 1z"/><path d="M13.5 20h6.5"/></svg>';
+  const ICONE_DO_PAPEL = { capa: capaFavicon, editor: editorFavicon, arvore: arvoreFavicon };
+  const iconeDaAba = (papel, favicon) => ICONE_DO_PAPEL[papel] || favicon || defaultFavicon;
 
   let currentTabs = [];
   let latestNavbarPercent = null;
@@ -262,7 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const img = document.createElement('img');
         img.className = 'tab-favicon';
         img.alt = '';
-        img.src = sub.favicon || (sub.role === 'capa' ? capaFavicon : sub.role === 'editor' ? editorFavicon : sub.role === 'arvore' ? arvoreFavicon : defaultFavicon);
+        img.src = iconeDaAba(sub.role, sub.favicon);
         b.appendChild(img);
         b.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); api.switchSubtab(sub.id); });
         b.addEventListener('contextmenu', (e) => { e.stopPropagation(); e.preventDefault(); api.showSplitTabContextMenu({ tabId: sub.id, coords: { x: e.clientX, y: e.clientY } }); });
@@ -342,16 +347,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           btn.className = `split-icon-btn role-${sub.role || 'default'} ${isActive}`.trim();
           
           let roleName = 'Aba';
-          let roleFallback = defaultFavicon;
           if (sub.role === 'capa') {
             roleName = 'CAPA';
-            roleFallback = capaFavicon;
           } else if (sub.role === 'editor') {
             roleName = 'Editor de Minuta';
-            roleFallback = editorFavicon;
           } else if (sub.role === 'arvore') {
             roleName = 'Árvore de Documentos';
-            roleFallback = arvoreFavicon;
           }
           btn.title = `${roleName} (clique para alternar / botão do meio para fechar)`;
           btn.setAttribute('aria-label', roleName);
@@ -363,7 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           const favEl = document.createElement('img');
           favEl.className = 'tab-favicon';
-          favEl.src = sub.favicon || roleFallback;
+          favEl.src = iconeDaAba(sub.role, sub.favicon);
           favEl.alt = '';
           selectSubBtn.appendChild(favEl);
           btn.appendChild(selectSubBtn);
@@ -486,7 +487,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const favicon = document.createElement('img');
         favicon.className = 'tab-favicon';
-        favicon.src = tab.favicon || defaultFavicon;
+        favicon.src = iconeDaAba(tab.role, tab.favicon);
+        if (ICONE_DO_PAPEL[tab.role]) favicon.classList.add('tab-favicon-papel');
         favicon.alt = '';
 
         const refreshBtn = document.createElement('button');
@@ -815,6 +817,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     api.onCopilotColuna(pintar);
     api.getCopilotColuna().then(pintar).catch(() => {});
+  })();
+
+  // Início e Meus Localizadores raptados da navbar do eproc (botoes-eproc-barra.js no host). O painel de localizadores
+  // é desenhado na própria aba; aqui só se avisa ao host hover (após 150 ms), saída e clique, com a posição do botão.
+  (function configurarBotoesEproc() {
+    const grupo = document.getElementById('eproc-barra-grupo');
+    const home = document.getElementById('btn-eproc-home');
+    const locs = document.getElementById('btn-eproc-locs');
+    if (!grupo || !home || !locs || !api.onBotoesEproc) return;
+    const pintar = (d) => { grupo.hidden = !(d && d.visivel); };
+    const rect = () => { const r = locs.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+    let hoverTimer = null;
+    home.addEventListener('click', () => api.acaoBotoesEproc('home'));
+    locs.addEventListener('mouseenter', () => {
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => api.acaoBotoesEproc('locs-entrou', rect()), 150);
+    });
+    locs.addEventListener('mouseleave', () => {
+      clearTimeout(hoverTimer);
+      api.acaoBotoesEproc('locs-saiu');
+    });
+    locs.addEventListener('click', (e) => {
+      e.preventDefault();
+      clearTimeout(hoverTimer);
+      api.acaoBotoesEproc('locs-clique', rect());
+    });
+    api.onBotoesEproc(pintar);
+    api.getBotoesEproc().then(pintar).catch(() => {});
   })();
 
   // Atualiza dinamicamente o gradiente com base no percentual exato medido da página/navbar

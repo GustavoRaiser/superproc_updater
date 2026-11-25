@@ -31,6 +31,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const categories = Registry.getCategories();
     let enabledMap = await Storage.getEnabledMap();
 
+    // Navegador SuperPROC: módulos que ele mesmo implementa (mesmos ids) ficam bloqueados aqui, com o aviso
+    // "CONTROLADO PELO NAVEGADOR". A ponte window.superprocHost só existe no navegador SuperPROC; em outros navegadores a
+    // lista fica vazia e nada muda.
+    let controladosNavegador = new Set();
+    try {
+        if (window.superprocHost && typeof window.superprocHost.modulosControlados === 'function') {
+            const lista = await window.superprocHost.modulosControlados();
+            if (Array.isArray(lista)) controladosNavegador = new Set(lista.filter(id => typeof id === 'string'));
+        }
+    } catch (_) { /* navegador antigo, sem a consulta: nada bloqueado */ }
+
     let currentCategory = 'all';
     let currentSearchTerm = '';
 
@@ -93,10 +104,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         filtered.forEach(mod => {
-            const isChecked = enabledMap[mod.id] !== undefined ? Boolean(enabledMap[mod.id]) : mod.defaultEnabled;
+            const controlado = controladosNavegador.has(mod.id);
+            const isChecked = !controlado && (enabledMap[mod.id] !== undefined ? Boolean(enabledMap[mod.id]) : mod.defaultEnabled);
 
             const card = document.createElement('div');
-            card.className = 'module-card';
+            card.className = 'module-card' + (controlado ? ' controlado-navegador' : '');
             card.dataset.id = mod.id;
 
             const catLabel = {
@@ -116,11 +128,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                     <div class="module-desc" id="module-desc-${mod.id}">${mod.description}</div>
                 </div>
-                <label class="switch" title="Ativar ou desativar esta função">
-                    <input type="checkbox" aria-labelledby="module-name-${mod.id}" aria-describedby="module-desc-${mod.id}" ${isChecked ? 'checked' : ''} data-id="${mod.id}">
+                <label class="switch" title="${controlado ? 'Controlado pelo navegador SuperPROC: ligue ou desligue em CFG > Configurações do navegador' : 'Ativar ou desativar esta função'}">
+                    <input type="checkbox" aria-labelledby="module-name-${mod.id}" aria-describedby="module-desc-${mod.id}" ${isChecked ? 'checked' : ''} ${controlado ? 'disabled' : ''} data-id="${mod.id}">
                     <span class="slider"></span>
                 </label>
             `;
+
+            if (controlado) {
+                const aviso = document.createElement('div');
+                aviso.className = 'aviso-controlado';
+                aviso.textContent = 'CONTROLADO PELO NAVEGADOR';
+                aviso.title = 'O navegador SuperPROC já tem este recurso, com os mesmos dados. Ligue ou desligue em CFG > Configurações do navegador.';
+                card.querySelector('.module-info').appendChild(aviso);
+            }
 
             if (mod.usuario) {
                 const remover = document.createElement('button');
@@ -200,7 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     btnEnableAll.addEventListener('click', async () => {
-        const checkboxes = modulesListEl.querySelectorAll('input[type="checkbox"]');
+        const checkboxes = modulesListEl.querySelectorAll('input[type="checkbox"]:not(:disabled)');
         for (const cb of checkboxes) {
             cb.checked = true;
             const id = cb.dataset.id;
@@ -210,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     btnDisableAll.addEventListener('click', async () => {
-        const checkboxes = modulesListEl.querySelectorAll('input[type="checkbox"]');
+        const checkboxes = modulesListEl.querySelectorAll('input[type="checkbox"]:not(:disabled)');
         for (const cb of checkboxes) {
             cb.checked = false;
             const id = cb.dataset.id;

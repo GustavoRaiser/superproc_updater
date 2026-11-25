@@ -85,7 +85,7 @@ main{max-width:880px;margin:0 auto;padding:6px 16px 64px}
 .aviso{background:var(--aviso);color:var(--avisoTxt);border-radius:4px;padding:3px 10px;font-size:.8rem;line-height:1.4;margin:4px 0}
 details.sumario{position:relative}
 details.sumario summary{cursor:pointer;font-weight:600;font-size:.9rem;padding:3px 0}
-details.sumario nav{position:absolute;top:calc(100% + 6px);left:0;z-index:10;background:var(--faixa);border:1px solid var(--linha);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.25);max-height:65vh;overflow:auto;width:min(460px,88vw);padding:6px 12px}
+details.sumario nav{position:absolute;top:calc(100% + 6px);left:0;z-index:10;background:var(--faixa);border:1px solid var(--linha);border-radius:6px;box-shadow:none;max-height:65vh;overflow:auto;width:min(460px,88vw);padding:6px 12px}
 details.sumario a{color:var(--texto);text-decoration:none;display:block;padding:1px 0;font-size:.9rem}
 details.sumario a:hover{color:var(--destaque)}
 h1{font-size:1.2rem;margin:10px 0 6px}h2,h3,h4,h5,h6{margin:16px 0 6px;line-height:1.3}

@@ -28,6 +28,10 @@
   const switchTextos = document.getElementById('switch-copilot-textos');
   const rowTextos = document.getElementById('row-copilot-textos');
   const descTextos = document.getElementById('desc-copilot-textos');
+  let copilotEditor = true; // chave "Copilot no modo editor" (só tem efeito com a coluna do Copilot ligada)
+  const switchEditor = document.getElementById('switch-copilot-editor');
+  const rowEditor = document.getElementById('row-copilot-editor');
+  const descEditor = document.getElementById('desc-copilot-editor');
   const switchRelacionados = document.getElementById('switch-relacionados-pilha');
   let doisMonitoresDisponivel = false;
   const btnUpdate = document.getElementById('btn-update');
@@ -272,6 +276,10 @@
     switchTextos.disabled = !colunaCopilot;
     rowTextos.classList.toggle('desligado', !colunaCopilot);
     descTextos.textContent = colunaCopilot ? 'Ícone do Copilot ao lado do cursor nos campos de texto.' : 'Indisponível: requer a Coluna Copilot ligada.';
+    switchEditor.setAttribute('aria-checked', String(copilotEditor && colunaCopilot));
+    switchEditor.disabled = !colunaCopilot;
+    rowEditor.classList.toggle('desligado', !colunaCopilot);
+    descEditor.textContent = colunaCopilot ? 'O Copilot lê e edita a minuta aberta.' : 'Indisponível: requer a Coluna Copilot ligada.';
     inputCopilot.disabled = !colunaCopilot;
     rowPctCopilot.classList.toggle('desligado', !colunaCopilot);
     // Em Dois monitores a árvore ocupa o outro monitor inteiro: o percentual da árvore não se aplica
@@ -303,6 +311,14 @@
     copilotTextos = !copilotTextos;
     renderModoAbertura();
     window.api.sendAction('set-copilot-textos', { ligado: copilotTextos });
+  });
+
+  switchEditor.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!colunaCopilot) return;
+    copilotEditor = !copilotEditor;
+    renderModoAbertura();
+    window.api.sendAction('set-copilot-modo-editor', { ligado: copilotEditor });
   });
 
   switchColuna.addEventListener('click', (e) => {
@@ -379,6 +395,16 @@
       window.api.sendAction('force-update');
     });
   }
+
+  // ↻ de cada linha: atualiza só aquela extensão (o processo principal fecha o menu e mostra o resultado).
+  flyout.querySelectorAll('.btn-update-one').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled || btn.closest('.addon-row')?.classList.contains('not-installed')) return;
+      btn.disabled = true;
+      window.api.sendAction('force-update', { nome: btn.dataset.update });
+    });
+  });
 
   // Fechar o submenu ao passar o mouse em qualquer outro item do cartão
   menuMain.querySelectorAll('.menu-item:not(.has-flyout)').forEach((item) => {
@@ -486,6 +512,50 @@
   });
   btnMnLimpar.addEventListener('click', (e) => { e.stopPropagation(); window.api.sendAction('set-atalho-minuta', { atalho: null }); });
   document.getElementById('item-atalho-mn').addEventListener('click', (e) => e.stopPropagation());
+
+  // ---------- Atalho "Copilot no modo editor" (mesma captura; liga/desliga o agente de edição na coluna) ----------
+  const btnEd = document.getElementById('btn-atalho-ed');
+  const btnEdLimpar = document.getElementById('btn-atalho-ed-limpar');
+  const statusEd = document.getElementById('atalho-ed-status');
+  let atalhoEd = null, capturandoEd = false;
+  function mostrarStatusEd(texto) { statusEd.textContent = texto || ''; statusEd.classList.toggle('hidden', !texto); }
+  function renderEd() {
+    btnEd.classList.toggle('capturando', capturandoEd);
+    btnEd.textContent = capturandoEd ? 'Pressione… (Esc cancela, Del remove)' : (atalhoEd ? Nucleo.descrever(atalhoEd) : 'Definir…');
+    btnEdLimpar.classList.toggle('hidden', !atalhoEd || capturandoEd);
+  }
+  function pararCapturaEd() {
+    capturandoEd = false;
+    window.removeEventListener('keydown', aoTeclaCapturaEd, true);
+    document.removeEventListener('mousedown', aoCliqueForaEd, true);
+    renderEd();
+  }
+  function aoCliqueForaEd(e) { if (!btnEd.contains(e.target)) pararCapturaEd(); }
+  function aoTeclaCapturaEd(e) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.repeat) return;
+    const semModificador = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+    if (e.code === 'Escape' && semModificador) { pararCapturaEd(); mostrarStatusEd('Cancelado: o atalho anterior foi mantido.'); return; }
+    if ((e.code === 'Delete' || e.code === 'Backspace') && semModificador) { pararCapturaEd(); window.api.sendAction('set-atalho-modo-editor', { atalho: null }); return; }
+    const r = Nucleo.avaliarTecla(e);
+    if (r.estado === 'aguardar') return;
+    if (r.estado === 'recusado') { mostrarStatusEd(r.motivo); return; }
+    pararCapturaEd();
+    window.api.sendAction('set-atalho-modo-editor', { atalho: r.atalho });
+  }
+  btnEd.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (capturandoEd) return;
+    if (capturando) pararCaptura();
+    if (capturandoMn) pararCapturaMn();
+    capturandoEd = true; mostrarStatusEd('');
+    window.addEventListener('keydown', aoTeclaCapturaEd, true);
+    document.addEventListener('mousedown', aoCliqueForaEd, true);
+    renderEd();
+  });
+  btnEdLimpar.addEventListener('click', (e) => { e.stopPropagation(); window.api.sendAction('set-atalho-modo-editor', { atalho: null }); });
+  document.getElementById('item-atalho-ed').addEventListener('click', (e) => e.stopPropagation());
 
   // ---------- Atalho "Fast Copilot no Editor" (mesma captura do atalho do PDF; ação própria) ----------
   const btnFc = document.getElementById('btn-atalho-fc');
@@ -654,6 +724,7 @@
       colunaCopilot = !!(data && data.colunaCopilot);
       relacionadosPilha = !data || data.relacionadosEmPilha !== false;
       copilotTextos = !data || data.copilotNosTextos !== false;
+      copilotEditor = !data || data.copilotModoEditor !== false;
       for (const [nome, chave] of [['copilot', 'copilotColunaPct'], ['arvore', 'arvorePct']]) {
         const v = Number(data && data[chave]);
         if (Number.isFinite(v)) PCT[nome].atual = Math.min(PCT[nome].max, Math.max(PCT[nome].min, Math.round(v)));
@@ -680,6 +751,10 @@
       atalhoMn = Nucleo.normalizarSalvo(data && data.atalhoMinutaCopilot);
       renderMn();
       mostrarStatusMn(data && data.mensagemAtalhoMinuta ? data.mensagemAtalhoMinuta : '');
+      if (capturandoEd) pararCapturaEd();
+      atalhoEd = Nucleo.normalizarSalvo(data && data.atalhoModoEditor);
+      renderEd();
+      mostrarStatusEd(data && data.mensagemAtalhoEditor ? data.mensagemAtalhoEditor : '');
       if (capturandoFc) pararCapturaFc();
       atalhoFc = Nucleo.normalizarSalvo(data && data.atalhoFastCopilot);
       renderFc();
@@ -700,6 +775,7 @@
         btnUpdate.classList.remove('updating');
         updateBtnText.textContent = '↻';
       }
+      flyout.querySelectorAll('.btn-update-one').forEach((b) => { b.disabled = false; });
       card.scrollTop = 0;
       fitWindow();
       if (data && data.focusFirst) {

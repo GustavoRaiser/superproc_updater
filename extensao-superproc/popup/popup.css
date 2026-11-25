@@ -656,3 +656,19 @@ input:checked + .slider:before {
     padding: 0 4px;
 }
 .module-remove:hover { color: #dc2626; }
+
+/* Módulo que o navegador SuperPROC já implementa: bloqueado aqui (o navegador controla) */
+.module-card.controlado-navegador { opacity: 0.85; }
+.module-card.controlado-navegador .switch { cursor: not-allowed; opacity: 0.5; }
+.aviso-controlado {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #e8f0fe;
+    color: #1967d2;
+    border: 1px solid #c2d7fb;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+}

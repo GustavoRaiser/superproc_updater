@@ -13,6 +13,7 @@
         <span class="addon-icon glyph glyph-az">AZ</span>
         <span>AZflow</span>
       </button>
+      <button type="button" class="btn-update-one" data-update="azflow" title="Atualizar só o AZflow" aria-label="Atualizar só o AZflow"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg></button>
       <button class="switch" role="switch" aria-checked="true" aria-label="Carregar AZflow" data-toggle="azflow"><span class="knob"></span></button>
       <button type="button" class="btn-install" data-install="azflow" aria-label="Instalar AZflow da Chrome Web Store">Instalar</button>
     </div>
@@ -21,6 +22,7 @@
         <span class="addon-icon glyph glyph-ep">E</span>
         <span>Epryx</span>
       </button>
+      <button type="button" class="btn-update-one" data-update="epryx" title="Atualizar só o Epryx" aria-label="Atualizar só o Epryx"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg></button>
       <button class="switch" role="switch" aria-checked="true" aria-label="Carregar Epryx" data-toggle="epryx"><span class="knob"></span></button>
       <button type="button" class="btn-install" data-install="epryx" aria-label="Instalar Epryx da Chrome Web Store">Instalar</button>
     </div>
@@ -29,6 +31,7 @@
         <span class="addon-icon glyph glyph-sp" aria-hidden="true">SP</span>
         <span>SuperPROC</span>
       </button>
+      <button type="button" class="btn-update-one" data-update="superproc" title="Atualizar só o SuperPROC" aria-label="Atualizar só o SuperPROC"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg></button>
       <button class="switch" role="switch" aria-checked="true" aria-label="Carregar extensão SuperPROC" data-toggle="superproc"><span class="knob"></span></button>
       <button type="button" class="btn-install" data-install="superproc" aria-label="Instalar a extensão SuperPROC">Instalar</button>
     </div>
@@ -37,10 +40,11 @@
         <span class="addon-icon glyph glyph-pdf">PDF</span>
         <span>Leitor PDF</span>
       </span>
+      <span class="btn-update-spacer" aria-hidden="true"></span><!-- o leitor PDF vem embutido no app: não há o que atualizar; o espaço mantém a chave alinhada -->
       <button class="switch" role="switch" aria-checked="true" aria-label="Carregar leitor PDF.js" data-toggle="pdf"><span class="knob"></span></button>
     </div>
     <div class="flyout-footer">
-      <button class="btn-update-extensions" id="btn-update" title="Atualizar extensões" aria-label="Atualizar extensões"><span id="update-btn-text">↻</span> ATUALIZAR</button>
+      <button class="btn-update-extensions" id="btn-update" title="Atualizar todas as extensões instaladas" aria-label="Atualizar todas as extensões"><span id="update-btn-text">↻</span> ATUALIZAR TUDO</button>
     </div>
   </div>
 
@@ -88,6 +92,10 @@
     <div class="col-row" id="row-copilot-textos" title="Mostra o ícone do Copilot à esquerda da linha do cursor nos campos de texto das abas, com o menu de prompts. Só funciona enquanto a coluna do Copilot está aberta; nunca aparece em campos de usuário e senha.">
       <span class="mode-text"><span class="mode-name">Copilot nos textos</span><span class="mode-desc" id="desc-copilot-textos">Ícone do Copilot ao lado do cursor nos campos de texto.</span></span>
       <button class="switch" id="switch-copilot-textos" role="switch" aria-checked="true" aria-label="Copilot nos textos"><span class="knob"></span></button>
+    </div>
+    <div class="col-row" id="row-copilot-editor" title="Liga na coluna o agente &quot;Editar com o Copilot&quot;: o Copilot lê o texto inteiro do editor da aba (a minuta) e altera só os parágrafos pedidos. Um pedido que começa por um verbo de edição (reescreva, corrija, coloque…) já sai nesse modo; o atalho liga e desliga a qualquer momento. Ctrl+Z no editor desfaz.">
+      <span class="mode-text"><span class="mode-name">Copilot no modo editor</span><span class="mode-desc" id="desc-copilot-editor">O Copilot lê e edita a minuta aberta.</span></span>
+      <button class="switch" id="switch-copilot-editor" role="switch" aria-checked="true" aria-label="Copilot no modo editor"><span class="knob"></span></button>
     </div>
     <div class="mode-divider" role="separator"></div>
     <div class="col-row" id="row-relacionados-pilha" title="Processos abertos a partir da capa de outro processo ficam sob a mesma aba, com o botão RELACIONADOS. Desligue para que cada um tenha sua própria aba.">
@@ -163,6 +171,16 @@
       </div>
       <div class="atalho-status hidden" id="atalho-mn-status" role="status" aria-live="polite"></div>
 
+      <div class="menu-item item-atalho" id="item-atalho-ed" title="Copilot no modo editor: liga ou desliga o agente &quot;Editar com o Copilot&quot; na coluna, sem enviar nada. Vale com o foco em qualquer aba (requer a Coluna Copilot e a chave ligadas).">
+        <span class="item-icon">✏️</span>
+        <span class="item-label">Copilot no modo editor</span>
+        <span class="atalho-ctrl">
+          <button type="button" class="atalho-btn" id="btn-atalho-ed" aria-label="Definir atalho do Copilot no modo editor">Definir…</button>
+          <button type="button" class="atalho-limpar hidden" id="btn-atalho-ed-limpar" aria-label="Remover atalho" title="Remover atalho">✕</button>
+        </span>
+      </div>
+      <div class="atalho-status hidden" id="atalho-ed-status" role="status" aria-live="polite"></div>
+
       <div class="menu-item item-atalho" id="item-atalho-fc" title="Leva o cursor ao campo de conversa da coluna do Copilot (requer a Coluna Copilot ligada).">
         <span class="item-icon">✨</span>
         <span class="item-label">Ir ao Copilot</span>
@@ -200,6 +218,11 @@
       <button type="button" class="menu-item" data-action="settings">
         <span class="item-icon">⚙</span>
         <span class="item-label">Configurações</span>
+      </button>
+
+      <button type="button" class="menu-item" data-action="open-organizador" title="Organizar os grupos do Smart Localizadores e do Smart Eventos e as cores dos localizadores">
+        <span class="item-icon">🗂</span>
+        <span class="item-label">Organizar grupos</span>
       </button>
 
       <button type="button" class="menu-item has-flyout" id="item-atualizacao" aria-controls="flyout-atualizacao" aria-expanded="false">

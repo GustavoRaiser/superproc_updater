@@ -18,7 +18,7 @@ body {
   background-color: #1a2230;
   border: 1px solid #334155;
   border-radius: 6px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 12px);

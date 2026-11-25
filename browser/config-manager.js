@@ -39,6 +39,13 @@ const DEFAULT_CONFIG = {
   optionalFeaturesEnabled: true,
   extensionLoading: { superproc: false, azflow: false, epryx: false, pdf: true },
   corretorOrtografico: true,
+  // "Menos abertura de abas" (menos-abas.js): clique no processo da lista do eproc abre na mesma aba. Ligado por padrão.
+  menosAberturaAbas: true,
+  // "Início e Meus Localizadores na barra" (botoes-eproc-barra.js): botões da navbar do eproc na barra do navegador. Ligado por padrão.
+  botoesEprocNaBarra: true,
+  // Recursos do eproc portados da extensão (eproc-recursos.js). Ligados por padrão.
+  smartLocsEventos: true,
+  localizadoresColoridos: true,
   modoAbertura: 'integrada',
   colunaCopilot: false,
   // Chave "Copilot nos textos": ícone do Copilot ao lado do cursor nos campos de texto das abas (redator-linha.js). Ligado por
@@ -60,6 +67,10 @@ const DEFAULT_CONFIG = {
   copilotColunaPct: FAIXA_COPILOT.padrao,
   atalhoColarPdfCopilot: null, // atalho (code + modificadores) que anexa o PDF do leitor ao Copilot; sem padrão
   atalhoMinutaCopilot: null, // atalho que anexa a minuta aberta ao chat do Copilot; sem padrão
+  // Copilot no modo editor (copilot-modo-editor.js): agente "Editar com o Copilot" na coluna, lendo e reescrevendo o texto do
+  // editor da aba. A chave vem ligada; o atalho liga/desliga o modo na coluna (padrão Ctrl+Shift+E; null = sem atalho).
+  copilotModoEditor: true,
+  atalhoModoEditor: { code: 'KeyE', ctrl: true, alt: false, shift: true, meta: false },
   atalhoAlteracaoTexto: null, // atalho que abre a caixa de Alteração de Texto (editor de minutas); sem padrão
   atalhoFastCopilot: null, // atalho que abre a caixa do Fast Copilot no editor de minutas; sem padrão
   arvorePct: FAIXA_ARVORE.padrao,
@@ -141,6 +152,10 @@ function loadConfig(forceReload = false) {
       }
       delete conf.legislacaoFormatada; // recurso removido
       if (typeof conf.corretorOrtografico !== 'boolean') conf.corretorOrtografico = true;
+      conf.menosAberturaAbas = conf.menosAberturaAbas !== false;
+      conf.botoesEprocNaBarra = conf.botoesEprocNaBarra !== false;
+      conf.smartLocsEventos = conf.smartLocsEventos !== false;
+      conf.localizadoresColoridos = conf.localizadoresColoridos !== false;
       // Migração: o antigo modo 'integradaCopilot' virou Integrada + toggle "Coluna Copilot" ligado
       if (typeof parsed.colunaCopilot !== 'boolean') conf.colunaCopilot = colunaDoModoLegado(parsed.modoAbertura);
       conf.modoAbertura = normalizarModo(conf.modoAbertura);
@@ -157,6 +172,11 @@ function loadConfig(forceReload = false) {
       conf.atalhoColarPdfCopilot = require('./quick-shortcut-core').normalizarSalvo(conf.atalhoColarPdfCopilot);
       conf.atalhoFastCopilot = require('./quick-shortcut-core').normalizarSalvo(conf.atalhoFastCopilot);
       conf.atalhoMinutaCopilot = require('./quick-shortcut-core').normalizarSalvo(conf.atalhoMinutaCopilot);
+      if (typeof conf.copilotModoEditor !== 'boolean') conf.copilotModoEditor = true;
+      // Perfil sem a chave gravada recebe o atalho padrão; null gravado significa "removido pela pessoa" e é mantido.
+      conf.atalhoModoEditor = parsed.atalhoModoEditor === undefined
+        ? { ...DEFAULT_CONFIG.atalhoModoEditor }
+        : require('./quick-shortcut-core').normalizarSalvo(conf.atalhoModoEditor);
       conf.atalhoAlteracaoTexto = require('./quick-shortcut-core').normalizarSalvo(conf.atalhoAlteracaoTexto);
       conf.arvorePct = normalizarPct(conf.arvorePct, FAIXA_ARVORE);
 
@@ -752,6 +772,31 @@ function setAtalhoMinutaCopilot(atalho) {
   return valido;
 }
 
+// Copilot no modo editor: chave (ligada por padrão) e atalho que liga/desliga o modo na coluna. null = sem atalho.
+function getCopilotModoEditor() {
+  return loadConfig().copilotModoEditor !== false;
+}
+
+function setCopilotModoEditor(ligado) {
+  const config = loadConfig();
+  config.copilotModoEditor = ligado !== false;
+  saveConfig(config);
+  return config.copilotModoEditor;
+}
+
+function getAtalhoModoEditor() {
+  return require('./quick-shortcut-core').normalizarSalvo(loadConfig().atalhoModoEditor);
+}
+
+function setAtalhoModoEditor(atalho) {
+  const valido = atalho ? require('./quick-shortcut-core').normalizarSalvo(atalho) : null;
+  if (atalho && !valido) return null;
+  const config = loadConfig();
+  config.atalhoModoEditor = valido;
+  saveConfig(config);
+  return valido;
+}
+
 function getAtalhoAlteracaoTexto() {
   return require('./quick-shortcut-core').normalizarSalvo(loadConfig().atalhoAlteracaoTexto);
 }
@@ -844,6 +889,10 @@ module.exports = {
   getAtalhoFastCopilot,
   getAtalhoMinutaCopilot,
   setAtalhoMinutaCopilot,
+  getCopilotModoEditor,
+  setCopilotModoEditor,
+  getAtalhoModoEditor,
+  setAtalhoModoEditor,
   getAtalhoAlteracaoTexto,
   setAtalhoAlteracaoTexto,
   setAtalhoFastCopilot,
