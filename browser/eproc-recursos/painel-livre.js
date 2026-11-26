@@ -1,21 +1,23 @@
 // Painel livre do navegador SuperPROC (camada: host; mundo isolado, só na tela do painel da secretaria).
 //
 // Reorganiza os blocos do Painel do Servidor numa lista em ordem, com blocos ocultos e uma engrenagem para configurar.
-// A ordem da lista é a ordem na página. Cada bloco escolhe um modo: centralizado (linha inteira), esquerda ou direita.
-// Esquerda e direita que ficam um depois do outro se encaixam lado a lado; um centralizado separa os trechos.
-// Ocultar é um estado à parte: o bloco guarda o seu modo, vai para o grupo Ocultos (no fim da página), com ordem própria, e só
-// volta para o fim da lista de cima por "Mostrar".
+// A página é uma lista de linhas, de cima para baixo; cada linha tem de 1 a 4 blocos, da esquerda para a direita, em colunas iguais.
+// Arrastar um bloco para entre duas linhas (ou antes da primeira / depois da última) cria uma linha só dele; arrastá-lo sobre outro
+// bloco o põe na linha desse bloco, à esquerda ou à direita dele (limite de 4 por linha).
+// Ocultar é um estado à parte: o bloco vai para o grupo Ocultos (no fim da página), com ordem própria, um por linha, e só volta
+// por "Mostrar", ao fim da página, numa linha só dele.
 // Substitui o antigo módulo painel_principal da extensão (mesma ideia, sem a reconstrução a cada mutação).
 //
 // REGRA DE VIDA: executa uma vez ao entrar e termina. Nada fica vigiando a página: sem MutationObserver, sem setInterval, sem
 // listeners em document/window. Sobram o CSS e os elementos da engrenagem, que morrem junto com o documento. O painel de
 // configuração é montado no clique e removido ao fechar; "Atualizar tudo" só usa observador e timers enquanto a fila roda.
+// Um único ouvinte de clique fica no próprio #divPainel (morre com ele): links que o eproc abre em aba nova abrem na mesma.
 //
 // Configuração (localStorage da origem do eproc; ver docs/ia/POOL-COMUM.md):
-//   superproc_painel_livre_v1      { v:3, ordem:[slug, ...], ocultos:[slug, ...], modo:{ slug: "topo"|"esq"|"dir" },
-//                                    dividir:[slug, ...] }   dividir = blocos centralizados cuja tabela se reparte em duas metades
-//                                  topo = centralizado. A v2 (modo "oculto" na mesma lista) e a v1 (zonas topo, c1, c2, c3,
-//                                  oculto) são aceitas e convertidas na leitura
+//   superproc_painel_livre_v1      { v:5, linhas:[[[slug, ...], ...], ...], ocultos:[slug, ...], dividir:{ slug: 2|3|4 } }
+//                                  linha > colunas (até 4, iguais) > blocos empilhados na coluna
+//                                  dividir = partes da tabela de cada bloco ([slug] antigo = 2); vale até 4 sozinho na linha, 2 meio a meio, 0 com 3 ou 4 colunas. A v4 (linha = blocos, um por coluna), a v3 (ordem + modo
+//                                  topo/esq/dir), a v2 (modo "oculto" na mesma lista) e a v1 (zonas) são aceitas e convertidas
 //   superproc_painel_livre_css_v1  CSS compilado a partir dela; o host (eproc-recursos.js) o lê e injeta na confirmação da
 //                                  navegação, antes da primeira pintura, e o remove quando este módulo termina
 // slug do bloco = id do fieldset; ids repetidos viram id#2, id#3 (o eproc repete fldMeusLocalizadores).
@@ -30,7 +32,8 @@ window.__spPainelLivre = true;
 
 const CHAVE = 'superproc_painel_livre_v1';
 const CHAVE_CSS = 'superproc_painel_livre_css_v1';
-const MODOS = ['topo', 'esq', 'dir'];
+const MAX_LINHA = 4; // colunas por linha da página
+const MAX_PARTES = 4; // partes em que a tabela de um bloco pode se dividir
 const SLUG_OK = /^[\w#-]{1,80}$/;
 const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
@@ -58,6 +61,7 @@ function lerCfg() {
   try {
     const c = JSON.parse(localStorage.getItem(CHAVE) || 'null');
     if (!c || typeof c !== 'object') return null;
+    if ((c.v === 4 || c.v === 5) && Array.isArray(c.linhas) && Array.isArray(c.ocultos)) return c;
     if (c.v === 3 && Array.isArray(c.ordem) && Array.isArray(c.ocultos) && c.modo && typeof c.modo === 'object') return c;
     if (c.v === 2 && Array.isArray(c.ordem) && c.modo && typeof c.modo === 'object') return c;
     if (c.v === 1 && c.zonas && typeof c.zonas === 'object') return c;
@@ -82,25 +86,52 @@ function daV2(c) {
   }
   return { v: 3, ordem, ocultos, modo, dividir: [] };
 }
-// Valida e completa: cada bloco conhecido uma vez (na lista de cima ou nos ocultos), com um modo válido. Blocos novos (o tribunal
-// pode criar) entram centralizados na lista de cima, logo depois do bloco que os antecede na página original.
+// v3 tinha a lista com um modo por bloco: centralizado vira linha própria; esquerda e direita seguidas eram duas colunas
+// independentes, que continuam assim (uma coluna empilha os blocos da esquerda, a outra os da direita).
+function daV3(c) {
+  const modo = c.modo && typeof c.modo === 'object' ? c.modo : {};
+  const linhas = [];
+  let esq = [], dir = [];
+  const fechar = () => { if (esq.length || dir.length) linhas.push([esq, dir]); esq = []; dir = []; };
+  for (const s of Array.isArray(c.ordem) ? c.ordem : []) {
+    if (modo[s] === 'esq') esq.push(s);
+    else if (modo[s] === 'dir') dir.push(s);
+    else { fechar(); linhas.push([[s]]); }
+  }
+  fechar();
+  return { v: 5, linhas, ocultos: c.ocultos, dividir: c.dividir };
+}
+// v4: linha = lista de blocos, um por coluna.
+const daV4 = (c) => ({ v: 5, linhas: (Array.isArray(c.linhas) ? c.linhas : []).map(l => (Array.isArray(l) ? l : []).map(s => [s])), ocultos: c.ocultos, dividir: c.dividir });
+// Uma linha com uma coluna só e vários blocos é o mesmo que uma linha por bloco: desfaz o empilhamento.
+const achatar = (linhas) => linhas.flatMap(r => (r.length === 1 ? r[0].map(s => [[s]]) : [r]));
+// Valida e completa. A página é uma lista de linhas; cada linha tem de 1 a MAX_LINHA colunas; cada coluna empilha 1 ou mais blocos.
+// Cada bloco conhecido aparece uma vez (numa coluna ou nos ocultos). Blocos novos (o tribunal pode criar) entram sozinhos numa
+// linha, depois da linha do bloco que os antecede na página original.
 function normalizar(c) {
   if (c.v === 1) c = daV2(daV1(c)); else if (c.v === 2) c = daV2(c);
+  if (c.v === 3) c = daV3(c); else if (c.v === 4) c = daV4(c);
   const vistos = new Set();
-  const limpa = (l) => (Array.isArray(l) ? l : []).filter(s => typeof s === 'string' && Object.hasOwn(porSlug, s) && !vistos.has(s) && vistos.add(s));
-  const ordem = limpa(c.ordem), ocultos = limpa(c.ocultos);
+  const novo = (s) => typeof s === 'string' && Object.hasOwn(porSlug, s) && !vistos.has(s) && vistos.add(s);
+  let linhas = [];
+  for (const l of Array.isArray(c.linhas) ? c.linhas : []) {
+    const cols = (Array.isArray(l) ? l : []).map(col => (Array.isArray(col) ? col : []).filter(novo)).filter(col => col.length);
+    for (let i = 0; i < cols.length; i += MAX_LINHA) linhas.push(cols.slice(i, i + MAX_LINHA));
+  }
+  linhas = achatar(linhas);
+  const ocultos = (Array.isArray(c.ocultos) ? c.ocultos : []).filter(novo);
   blocos.forEach((b, i) => {
     if (vistos.has(b.slug)) return;
     let pos = 0;
-    for (let k = i - 1; k >= 0; k--) { const j = ordem.indexOf(blocos[k].slug); if (j >= 0) { pos = j + 1; break; } }
-    ordem.splice(pos, 0, b.slug);
+    for (let k = i - 1; k >= 0; k--) { const j = linhas.findIndex(r => r.some(col => col.includes(blocos[k].slug))); if (j >= 0) { pos = j + 1; break; } }
+    linhas.splice(pos, 0, [[b.slug]]);
     vistos.add(b.slug);
   });
-  const origem = c.modo && typeof c.modo === 'object' ? c.modo : {};
-  const modo = {};
-  for (const s of [...ordem, ...ocultos]) modo[s] = Object.hasOwn(origem, s) && MODOS.includes(origem[s]) ? origem[s] : 'topo';
-  const dividir = (Array.isArray(c.dividir) ? c.dividir : []).filter((s, i, l) => typeof s === 'string' && Object.hasOwn(porSlug, s) && l.indexOf(s) === i);
-  return { v: 3, ordem, ocultos, modo, dividir };
+  // dividir: { slug: partes (2 a MAX_PARTES) }; a lista antiga [slug, ...] vale 2 partes para cada um.
+  const origemDiv = Array.isArray(c.dividir) ? Object.fromEntries(c.dividir.filter(s => typeof s === 'string').map(s => [s, 2])) : (c.dividir && typeof c.dividir === 'object' ? c.dividir : {});
+  const dividir = {};
+  for (const [s, n] of Object.entries(origemDiv)) if (Object.hasOwn(porSlug, s) && Number.isInteger(n) && n >= 2 && n <= MAX_PARTES) dividir[s] = n;
+  return { v: 5, linhas, ocultos, dividir };
 }
 function seletor(slug) {
   const [id, n] = slug.split('#');
@@ -121,20 +152,70 @@ function salvar(cfg) {
     if (localStorage.getItem(CHAVE_CSS) !== css) localStorage.setItem(CHAVE_CSS, css);
   } catch (_) { /* armazenamento cheio ou bloqueado: vale só até recarregar */ }
 }
-// Ocultar tira o bloco da lista de cima e o põe no fim dos ocultos; Mostrar o devolve ao fim da lista de cima.
+// Edição da lista de linhas (sempre sobre uma cópia da configuração). linhas[linha][coluna][posição na coluna] = slug.
+// Tirar deixa colunas/linhas vazias (os índices das outras continuam valendo); arrumar as remove e desfaz empilhamentos de coluna única.
+function arrumar(x) {
+  x.linhas = achatar(x.linhas.map(r => r.filter(col => col.length)).filter(r => r.length));
+}
+function tirar(x, slug) {
+  for (const r of x.linhas) for (const col of r) { const i = col.indexOf(slug); if (i >= 0) col.splice(i, 1); }
+}
+const acharBloco = (x, slug) => {
+  for (let r = 0; r < x.linhas.length; r++) for (let c = 0; c < x.linhas[r].length; c++) {
+    const i = x.linhas[r][c].indexOf(slug);
+    if (i >= 0) return { r, c, i };
+  }
+  return null;
+};
+// Ocultar tira o bloco da página e o põe no fim dos ocultos; Mostrar o devolve ao fim da página, numa linha só dele.
 function ocultar(x, slug) {
-  const i = x.ordem.indexOf(slug);
-  if (i < 0) return;
-  x.ordem.splice(i, 1);
+  if (!acharBloco(x, slug)) return;
+  tirar(x, slug);
+  arrumar(x);
   x.ocultos.push(slug);
 }
 function mostrar(x, slug) {
   const i = x.ocultos.indexOf(slug);
   if (i < 0) return;
   x.ocultos.splice(i, 1);
-  x.ordem.push(slug);
+  x.linhas.push([[slug]]);
 }
-
+// Teclado, com a alça em foco:
+//  cima/baixo   troca de lugar com o vizinho da coluna; na ponta da coluna, um bloco sozinho na linha troca a linha de lugar e os
+//               demais saem para uma linha própria (acima ou abaixo);
+//  esq./dir.    troca a coluna de lugar (coluna de um bloco só) ou passa o bloco para a coluna vizinha (ou para uma coluna nova na
+//               ponta, se couber);
+//  Alt + cima/baixo   une o bloco à linha vizinha, como coluna nova na ponta, se couber.
+function mover(x, slug, tecla, unir) {
+  const p = acharBloco(x, slug);
+  if (!p) return;
+  const linha = x.linhas[p.r], col = linha[p.c];
+  if (tecla === 'ArrowLeft' || tecla === 'ArrowRight') {
+    const d = tecla === 'ArrowLeft' ? -1 : 1, viz = linha[p.c + d];
+    if (viz && col.length === 1) [linha[p.c], linha[p.c + d]] = [viz, col];
+    else if (viz) { col.splice(p.i, 1); viz.splice(Math.min(p.i, viz.length), 0, slug); }
+    else if (col.length > 1 && linha.length < MAX_LINHA) { col.splice(p.i, 1); linha.splice(d < 0 ? p.c : p.c + 1, 0, [slug]); }
+    arrumar(x);
+    return;
+  }
+  const d = tecla === 'ArrowUp' ? -1 : 1;
+  const vizinha = x.linhas[p.r + d];
+  if (unir) {
+    if (!vizinha || vizinha.length >= MAX_LINHA) return;
+    col.splice(p.i, 1);
+    if (d < 0) vizinha.push([slug]); else vizinha.unshift([slug]);
+  } else if (col[p.i + d]) {
+    [col[p.i], col[p.i + d]] = [col[p.i + d], col[p.i]];
+  } else if (linha.length === 1 && col.length === 1) {
+    if (!vizinha) return;
+    x.linhas[p.r] = vizinha;
+    x.linhas[p.r + d] = linha;
+  } else {
+    col.splice(p.i, 1);
+    x.linhas.splice(d < 0 ? p.r : p.r + 1, 0, [[slug]]);
+  }
+  arrumar(x);
+}
 function el(tag, props, ...filhos) {
   const e = document.createElement(tag);
   if (props) for (const k of Object.keys(props)) {
@@ -151,15 +232,13 @@ const ICONE_LUGAR = (miolo) => '<svg width="18" height="18" viewBox="0 0 24 24" 
 const ICONE_OCULTAR = ICONE_LUGAR('<path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.4 5.4A9.7 9.7 0 0 1 12 5c4 0 7.3 2.4 9 7a13 13 0 0 1-2.4 3.6M6.6 6.6A13 13 0 0 0 3 12c1.7 4.6 5 7 9 7a9.7 9.7 0 0 0 4-.9"/>');
 const ICONE_MOSTRAR = ICONE_LUGAR('<circle cx="12" cy="12" r="3"/><path d="M21 12c-2.7 4.7-6 7-9 7s-6.3-2.3-9-7c2.7-4.7 6-7 9-7s6.3 2.3 9 7z"/>');
 const ICONE_DIVIDIR = ICONE_LUGAR('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16" stroke-dasharray="2 2"/><path d="M5.5 9h4M5.5 12h4M5.5 15h4M14.5 9h4M14.5 12h4M14.5 15h4"/>');
-const LUGARES = [
-  { modo: 'topo', nome: 'Centralizado', acao: 'Centralizar', icone: ICONE_LUGAR('<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="6" y="9" width="12" height="6" rx="1" fill="currentColor" stroke="none"/>') },
-  { modo: 'esq', nome: 'Esquerda', acao: 'Pôr à esquerda', icone: ICONE_LUGAR('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/><rect x="5" y="6.5" width="5" height="11" rx="1" fill="currentColor" stroke="none"/>') },
-  { modo: 'dir', nome: 'Direita', acao: 'Pôr à direita', icone: ICONE_LUGAR('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/><rect x="14" y="6.5" width="5" height="11" rx="1" fill="currentColor" stroke="none"/>') }
-];
 const SVG_ALCA = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
 const SVG_SETA = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 
+// Coluna das contagens (última célula das linhas de dados): mesma largura em todos os blocos, para os números alinharem.
+const LARGURA_CONTAGEM = 84;
 const CSS_UI = `
+#divPainel table.infraTable>tbody>tr>td:last-child:not(:first-child){width:${LARGURA_CONTAGEM}px!important;min-width:${LARGURA_CONTAGEM}px!important;max-width:${LARGURA_CONTAGEM}px!important;white-space:nowrap;box-sizing:border-box}
 #sp-pl-acoes{display:flex;align-items:center;gap:8px;margin-left:auto;margin-right:12px}
 #sp-pl-status{font-size:13px;color:#495057}
 .sp-pl-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;min-width:32px;padding:0 10px;margin:0;font:13px/1 Roboto,Arial,sans-serif;color:#212529;background:#fff;border:1px solid #ced4da;border-radius:4px;cursor:pointer}
@@ -168,7 +247,7 @@ const CSS_UI = `
 .sp-pl-btn[aria-pressed="true"]{background:#e7f3f8;border-color:#0b6e99;color:#0b5576}
 .sp-pl-btn.sp-pl-perigo{color:#a32d2d;border-color:#d9a3a3}
 .sp-pl-btn:focus-visible{outline:2px solid #0b6e99;outline-offset:2px}
-#sp-pl-painel{position:absolute;top:100%;right:0;z-index:1050;box-sizing:border-box;width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow:auto;padding:16px;font:13px/1.4 Roboto,Arial,sans-serif;color:#212529;background:#fff;border:1px solid #adb5bd;border-radius:8px}
+#sp-pl-painel{position:absolute;top:100%;right:0;z-index:1050;box-sizing:border-box;width:min(600px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow:auto;padding:16px;font:13px/1.4 Roboto,Arial,sans-serif;color:#212529;background:#fff;border:1px solid #adb5bd;border-radius:8px}
 #sp-pl-painel *{box-sizing:border-box}
 #sp-pl-painel h2{margin:0;font-size:16px;font-weight:500}
 #sp-pl-painel h3{margin:16px 0 6px;font-size:12px;font-weight:500;color:#495057}
@@ -176,10 +255,25 @@ const CSS_UI = `
 .sp-pl-topo-painel{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .sp-pl-linha{display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid #e9ecef}
 .sp-pl-nome{flex:1;min-width:0;overflow-wrap:anywhere}
-.sp-pl-lugares{display:flex;flex:none;gap:4px}
-.sp-pl-lugares+.sp-pl-btn{margin-left:6px}
-.sp-pl-linha .sp-pl-btn{height:30px;min-width:30px;padding:0 6px}
-.sp-pl-linha .sp-pl-btn svg{display:block}
+.sp-pl-linha .sp-pl-btn,.sp-pl-chip .sp-pl-btn{height:30px;min-width:30px;padding:0 6px}
+.sp-pl-linha .sp-pl-btn svg,.sp-pl-chip .sp-pl-btn svg{display:block}
+.sp-pl-linhas{margin:0;padding:0}
+.sp-pl-entre{height:14px;margin:0;position:relative}
+.sp-pl-entre::after{content:"";position:absolute;left:0;right:0;top:50%;height:3px;margin-top:-1.5px;border-radius:2px;background:transparent}
+.sp-pl-entre.sp-pl-sobre::after{background:#0b6e99}
+.sp-pl-lin{display:flex;gap:3px;align-items:stretch;margin:0}
+.sp-pl-lin>.sp-pl-colcfg{align-self:flex-start}
+.sp-pl-vaga{flex:none;width:0;border-radius:4px}
+#sp-pl-painel.sp-pl-em-arraste .sp-pl-vaga{width:18px;border:1px dashed #adb5bd;background:#f8f9fa}
+#sp-pl-painel.sp-pl-em-arraste .sp-pl-vaga.sp-pl-sobre{border:1px solid #0b6e99;background:#0b6e99}
+.sp-pl-colcfg{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px}
+.sp-pl-chip{display:flex;flex-direction:column;gap:4px;padding:6px;border:1px solid #ced4da;border-radius:6px;background:#fff}
+.sp-pl-chip-topo{display:flex;align-items:flex-start;gap:2px}
+.sp-pl-chip-topo .sp-pl-nome{padding-top:6px}
+.sp-pl-chip-acoes{display:flex;gap:4px}
+.sp-pl-partes{font:500 12px/1 Roboto,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.sp-pl-chip.sp-pl-sobre-cima{box-shadow:0 -4px 0 #0b6e99}
+.sp-pl-chip.sp-pl-sobre-baixo{box-shadow:0 4px 0 #0b6e99}
 .sp-pl-dica{margin:8px 0 6px;font-size:12px;color:#6c757d}
 .sp-pl-oculta{color:#6c757d}
 .sp-pl-vazio{padding:6px 0;color:#6c757d}
@@ -205,9 +299,9 @@ const CSS_UI = `
 #sp-pl-oc-toggle:focus-visible{outline:2px solid #0b6e99;outline-offset:-2px}
 #sp-pl-oc-toggle[aria-expanded="true"] svg{transform:rotate(180deg)}
 #sp-pl-ocultos-corpo{padding:0 14px 14px}
-#divPainel .sp-pl-dividida{display:flex!important;align-items:flex-start;gap:15px;width:100%!important;overflow:visible!important}
+#divPainel .sp-pl-dividida{display:flex!important;align-items:flex-start;gap:var(--sp-pl-vao-div,15px);width:100%!important;overflow:visible!important}
 #divPainel .sp-pl-dividida>table{flex:1 1 0;min-width:0;width:auto!important;margin:0!important}
-@media (max-width:900px){.sp-pl-faixa{flex-direction:column;align-items:stretch}#divPainel .sp-pl-dividida{flex-direction:column!important;align-items:stretch}#divPainel .sp-pl-dividida>table{flex:none}}
+@media (max-width:900px){.sp-pl-faixa{flex-direction:column;align-items:stretch}#divPainel .sp-pl-dividida{flex-direction:column!important;align-items:stretch;gap:15px}#divPainel .sp-pl-dividida>table{flex:none}}
 @media (prefers-reduced-motion:no-preference){#sp-pl-oc-toggle svg{transition:transform .15s ease-out}}
 `;
 
@@ -233,73 +327,97 @@ function garantirEstrutura() {
 }
 // A lista é a página: centralizado ocupa a linha toda e separa os trechos; esquerda e direita seguidas formam uma faixa de
 // duas colunas independentes (cada coluna empilha os seus blocos na ordem da lista, sem linhas alinhadas entre si).
-// Reparte as linhas de dados de cada tabela do bloco em duas metades lado a lado. As linhas são movidas, não copiadas, e voltam ao
-// desligar; o cabeçalho fica na primeira metade.
-function ajustarDivisao(b, ligado) {
-  if (ligado === !!b.divididas) return;
-  if (!ligado) {
-    for (const { t, t2, caixa } of b.divididas) {
-      const corpo = t.tBodies[0];
-      for (const r of [...t2.rows]) corpo.append(r);
-      t.querySelector(':scope > colgroup[data-sp-cg]')?.remove();
-      t.style.tableLayout = '';
-      caixa.replaceWith(t);
-    }
-    b.divididas = null;
-    return;
+// Reparte as linhas de dados de cada tabela do bloco em n partes lado a lado (n = 0 desliga). As linhas são movidas, não copiadas,
+// e voltam ao desligar; o cabeçalho fica na primeira parte. As primeiras partes levam a sobra (11 linhas em 3 = 4, 4, 3), e nenhuma
+// tabela se reparte em mais partes do que tem linhas de dados.
+function desfazerDivisao(b) {
+  for (const { t, partes, caixa } of b.divididas.feitas) {
+    const corpo = t.tBodies[0];
+    for (const p of partes) for (const r of [...p.rows]) corpo.append(r);
+    t.querySelector(':scope > colgroup[data-sp-cg]')?.remove();
+    t.style.tableLayout = '';
+    caixa.replaceWith(t);
   }
+  b.divididas = null;
+}
+function ajustarDivisao(b, n) {
+  if ((b.divididas ? b.divididas.n : 0) === n) return;
+  if (b.divididas) desfazerDivisao(b);
+  if (!n) return;
   const feitas = [];
   const tabelas = [...b.el.querySelectorAll('table')].filter(t => t.closest('fieldset') === b.el && !t.parentElement.closest('table'));
   for (const t of tabelas) {
     const corpo = t.tBodies[0];
     if (!corpo) continue;
     const dados = [...corpo.rows].filter(r => r.querySelector(':scope > td'));
-    if (dados.length < 2) continue;
-    // Mesmas larguras de coluna nas duas metades (medidas antes de mover), para os valores ficarem alinhados.
+    const k = Math.min(n, dados.length);
+    if (k < 2) continue;
+    // Mesmas larguras de coluna em todas as partes (medidas antes de mover), para os valores ficarem alinhados.
     const celulas = [...dados[0].cells];
     const larg = celulas.map(c => c.getBoundingClientRect().width);
-    const soma = larg.reduce((a, n) => a + n, 0);
+    const soma = larg.reduce((a, w) => a + w, 0);
     const colunas = soma > 0 && celulas.every(c => c.colSpan === 1);
-    const t2 = document.createElement('table');
-    for (const a of t.attributes) if (a.name !== 'id') t2.setAttribute(a.name, a.value);
-    t2.dataset.spMetade = '1';
-    const corpo2 = t2.createTBody();
-    for (const r of dados.slice(Math.ceil(dados.length / 2))) corpo2.append(r);
+    const base = Math.floor(dados.length / k), sobra = dados.length % k;
+    const partes = [];
+    let pos = base + (sobra > 0 ? 1 : 0); // a 1ª parte é a própria tabela, com as primeiras linhas
+    for (let p = 1; p < k; p++) {
+      const tp = document.createElement('table');
+      for (const a of t.attributes) if (a.name !== 'id') tp.setAttribute(a.name, a.value);
+      tp.dataset.spMetade = '1';
+      const cp = tp.createTBody();
+      const tam = base + (p < sobra ? 1 : 0);
+      for (const r of dados.slice(pos, pos + tam)) cp.append(r);
+      pos += tam;
+      partes.push(tp);
+    }
     const caixa = el('div', { className: 'sp-pl-dividida' });
+    // O vão entre as partes é o vão entre colunas (15 px) mais o recuo interno dos dois quadros (padding + borda de cada lado).
+    // Em 2 partes, a 1ª termina onde termina a tabela da coluna esquerda e a 2ª começa onde começa a da direita.
+    const estilo = getComputedStyle(b.el);
+    const recuo = (parseFloat(estilo.paddingRight) || 0) + (parseFloat(estilo.borderRightWidth) || 0) +
+      (parseFloat(estilo.paddingLeft) || 0) + (parseFloat(estilo.borderLeftWidth) || 0);
+    caixa.style.setProperty('--sp-pl-vao-div', (15 + recuo) + 'px');
     t.replaceWith(caixa);
-    caixa.append(t, t2);
+    caixa.append(t, ...partes);
     if (colunas) {
-      for (const tab of [t, t2]) {
+      for (const tab of [t, ...partes]) {
         const cg = el('colgroup', { dataset: { spCg: '1' } });
-        for (const w of larg) { const c = document.createElement('col'); c.style.width = (w / soma * 100).toFixed(2) + '%'; cg.append(c); }
+        // A última coluna (contagem) tem a largura fixa dos outros blocos; as demais repartem o resto na proporção medida.
+        const resto = larg.slice(0, -1).reduce((a, w) => a + w, 0);
+        larg.forEach((w, i) => {
+          const c = document.createElement('col');
+          if (i === larg.length - 1) c.style.width = LARGURA_CONTAGEM + 'px';
+          else if (larg.length > 2 && resto > 0) c.style.width = 'calc((100% - ' + LARGURA_CONTAGEM + 'px) * ' + (w / resto).toFixed(4) + ')';
+          cg.append(c);
+        });
         tab.insertBefore(cg, tab.firstChild);
         tab.style.tableLayout = 'fixed';
       }
     }
-    feitas.push({ t, t2, caixa });
+    feitas.push({ t, partes, caixa });
   }
-  b.divididas = feitas.length ? feitas : null;
+  b.divididas = feitas.length ? { n, feitas } : null;
+}
+// Quantas partes a tabela do bloco pode ter onde ele está: sozinho na linha (ou oculto) até MAX_PARTES; numa linha de 2 colunas
+// (meio a meio) até 2; numa linha de 3 ou 4 colunas não divide. O número escolhido fica guardado: se o bloco voltar a ter espaço,
+// a divisão maior volta junto.
+function limiteDivisao(cfg, slug) {
+  if (cfg.ocultos.includes(slug)) return MAX_PARTES;
+  const r = cfg.linhas.find(l => l.some(col => col.includes(slug)));
+  return !r ? 0 : r.length === 1 ? MAX_PARTES : r.length === 2 ? 2 : 0;
 }
 function aplicar(cfg) {
   garantirEstrutura();
-  for (const b of blocos) ajustarDivisao(b, cfg.dividir.includes(b.slug) && cfg.modo[b.slug] === 'topo');
-  const monta = (lista, destino) => {
-    const itens = [];
-    let faixa = null;
-    for (const slug of lista) {
-      const no = porSlug[slug].el, m = cfg.modo[slug];
-      if (m === 'topo') { faixa = null; itens.push(no); continue; }
-      if (!faixa) { faixa = el('div', { className: 'sp-pl-faixa' }, el('div', { className: 'sp-pl-col' }), el('div', { className: 'sp-pl-col' })); itens.push(faixa); }
-      faixa.children[m === 'esq' ? 0 : 1].append(no);
-    }
-    destino.replaceChildren(...itens);
-  };
-  monta(cfg.ordem, fluxoEl);
-  monta(cfg.ocultos, ocultosCorpo); // os ocultos também respeitam centralizado, esquerda e direita, na ordem própria deles
+  for (const b of blocos) ajustarDivisao(b, Math.min(cfg.dividir[b.slug] || 0, limiteDivisao(cfg, b.slug)));
+  // Bloco sozinho na linha ocupa a linha toda; com mais colunas, a linha é uma faixa de colunas iguais, cada uma empilhando os seus blocos.
+  const monta = (linhas, destino) => destino.replaceChildren(...linhas.map(r => (r.length === 1 && r[0].length === 1
+    ? porSlug[r[0][0]].el
+    : el('div', { className: 'sp-pl-faixa' }, ...r.map(col => el('div', { className: 'sp-pl-col' }, ...col.map(s => porSlug[s].el)))))));
+  monta(cfg.linhas, fluxoEl);
+  monta(cfg.ocultos.map(s => [[s]]), ocultosCorpo); // ocultos: um por linha, na ordem própria deles
   ocultosNum.textContent = String(cfg.ocultos.length);
   ocultosEl.hidden = !cfg.ocultos.length;
 }
-
 // ---- Atualizar tudo: fila curta, só no clique ----
 // A página já conta Minutas e Meus Localizadores ao carregar; este botão refaz as contagens dos blocos visíveis (os ocultos não).
 const MESTRES = ['#atualizaRelatoriosTodas', '#atualizaMinutasTodas', '#atualizaMeusLocalizadoresTodas', '#atualizarListaDeProcessosPorLocalizadorTodas'];
@@ -393,7 +511,7 @@ async function atualizarTudo(botao, status, visiveis) {
 // ---- Engrenagem e painel de configuração (montado no clique, removido ao fechar) ----
 let cfgAtual = null;      // configuração em edição; null = página nativa, ainda sem nada salvo
 let painelEl = null, engrenagem = null, barra = null;
-const cfgBase = () => normalizar({ v: 3, ordem: blocos.map(b => b.slug), ocultos: [], modo: {} });
+const cfgBase = () => normalizar({ v: 5, linhas: blocos.map(b => [[b.slug]]), ocultos: [], dividir: {} });
 const visiveisAgora = () => blocos.filter(b => !cfgAtual || !cfgAtual.ocultos.includes(b.slug)).map(b => b.el);
 
 function mudar(fn) {
@@ -405,7 +523,7 @@ function mudar(fn) {
   renderPainel();
 }
 let confirmandoRestaurar = false;
-let arrastando = null; // { slug, chave } do bloco arrastado; só solta na mesma lista (ordem ou ocultos)
+let arrastando = null; // { slug, chave } do bloco arrastado; só solta na mesma lista (linhas ou ocultos)
 function renderPainel() {
   if (!painelEl) return;
   const c = cfgAtual || cfgBase();
@@ -418,77 +536,189 @@ function renderPainel() {
   fechar.addEventListener('click', fecharPainel);
   painelEl.append(el('div', { className: 'sp-pl-topo-painel' }, el('h2', { id: 'sp-pl-titulo' }, 'Organizar o painel'), fechar));
 
-  painelEl.append(el('p', { className: 'sp-pl-dica' }, 'A ordem da lista é a ordem na página: arraste pela alça (ou, com ela em foco, use as setas do teclado). Esquerda e direita, um depois do outro, se encaixam lado a lado; centralizado ocupa a linha toda, e Dividir ao meio reparte a tabela em duas metades lado a lado. Os ocultos ficam no fim da página, com ordem própria; Mostrar devolve o bloco ao fim da lista de cima.'));
-  const lista = (chave, titulo, vazio) => {
-    const itens = c[chave];
-    const ehOculto = chave === 'ocultos';
-    painelEl.append(el('h3', null, titulo + ' (' + itens.length + ')'));
-    const ul = el('ul');
-    ul.setAttribute('aria-label', titulo);
-    if (!itens.length) ul.append(el('li', { className: 'sp-pl-vazio' }, vazio));
-    itens.forEach((slug, i) => {
-      const bloco = porSlug[slug];
-      const atual = c.modo[slug];
-      const lugares = el('div', { className: 'sp-pl-lugares', role: 'group' });
-      lugares.setAttribute('aria-label', 'Lugar de ' + bloco.titulo);
-      for (const l of LUGARES) {
-        const b = el('button', { type: 'button', className: 'sp-pl-btn', title: l.nome, dataset: { k: 'p' + l.modo + slug } });
-        b.insertAdjacentHTML('beforeend', l.icone);
-        b.setAttribute('aria-label', l.acao + ': ' + bloco.titulo);
-        b.setAttribute('aria-pressed', String(l.modo === atual));
-        b.addEventListener('click', () => { if (l.modo !== atual) mudar(x => { x.modo[slug] = l.modo; }); });
-        lugares.append(b);
-      }
-      const visibilidade = el('button', { type: 'button', className: 'sp-pl-btn', title: ehOculto ? 'Mostrar na página' : 'Ocultar', dataset: { k: 'o' + slug } });
-      visibilidade.insertAdjacentHTML('beforeend', ehOculto ? ICONE_MOSTRAR : ICONE_OCULTAR);
-      visibilidade.setAttribute('aria-label', (ehOculto ? 'Mostrar' : 'Ocultar') + ': ' + bloco.titulo);
-      visibilidade.addEventListener('click', () => mudar(x => (ehOculto ? mostrar(x, slug) : ocultar(x, slug))));
-      lugares.append(visibilidade);
-      const dividivel = atual === 'topo';
-      const divide = el('button', { type: 'button', className: 'sp-pl-btn', title: dividivel ? 'Dividir ao meio' : 'Só blocos centralizados podem ser divididos', disabled: !dividivel, dataset: { k: 'v' + slug } });
-      divide.insertAdjacentHTML('beforeend', ICONE_DIVIDIR);
-      divide.setAttribute('aria-label', 'Dividir ao meio: ' + bloco.titulo);
-      divide.setAttribute('aria-pressed', String(c.dividir.includes(slug)));
-      divide.addEventListener('click', () => mudar(x => { const k = x.dividir.indexOf(slug); if (k >= 0) x.dividir.splice(k, 1); else x.dividir.push(slug); }));
-      const alca = el('span', { className: 'sp-pl-alca', tabIndex: 0, role: 'button', title: 'Arrastar para mudar a posição (ou setas do teclado)', dataset: { k: 'a' + slug } });
-      alca.setAttribute('aria-label', 'Mover ' + bloco.titulo + ' (setas para cima e para baixo)');
-      alca.insertAdjacentHTML('beforeend', SVG_ALCA);
-      alca.draggable = true;
-      alca.addEventListener('keydown', (e) => {
-        const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
-        if (!d) return;
-        e.preventDefault();
-        if (i + d < 0 || i + d >= itens.length) return;
-        mudar(x => { const o = x[chave]; [o[i], o[i + d]] = [o[i + d], o[i]]; });
-      });
-      const linha = el('li', { className: 'sp-pl-linha' }, alca, el('span', { className: 'sp-pl-nome' + (ehOculto ? ' sp-pl-oculta' : '') }, bloco.titulo), lugares, divide);
-      const limpar = () => painelEl.querySelectorAll('.sp-pl-sobre-cima, .sp-pl-sobre-baixo, .sp-pl-arrastando').forEach(n => n.classList.remove('sp-pl-sobre-cima', 'sp-pl-sobre-baixo', 'sp-pl-arrastando'));
-      const depoisDoMeio = (e) => { const r = linha.getBoundingClientRect(); return e.clientY > r.top + r.height / 2; };
-      const daMesmaLista = () => arrastando && arrastando.chave === chave && arrastando.slug !== slug;
-      alca.addEventListener('dragstart', (e) => { arrastando = { slug, chave }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', slug); linha.classList.add('sp-pl-arrastando'); });
-      alca.addEventListener('dragend', () => { arrastando = null; limpar(); });
-      linha.addEventListener('dragover', (e) => {
-        if (!daMesmaLista()) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        const depois = depoisDoMeio(e);
-        linha.classList.toggle('sp-pl-sobre-cima', !depois);
-        linha.classList.toggle('sp-pl-sobre-baixo', depois);
-      });
-      linha.addEventListener('dragleave', () => linha.classList.remove('sp-pl-sobre-cima', 'sp-pl-sobre-baixo'));
-      linha.addEventListener('drop', (e) => {
-        if (!daMesmaLista()) return;
-        e.preventDefault();
-        const origem = arrastando.slug, depois = depoisDoMeio(e);
-        arrastando = null;
-        mudar(x => { const o = x[chave]; o.splice(o.indexOf(origem), 1); let k = o.indexOf(slug); if (depois) k++; o.splice(k, 0, origem); });
-      });
-      ul.append(linha);
-    });
-    painelEl.append(ul);
+  painelEl.append(el('p', { className: 'sp-pl-dica' }, 'Arraste um bloco pela alça. Solte entre duas linhas para ele ocupar uma linha inteira. Solte sobre outro bloco para empilhar acima ou abaixo dele, na mesma coluna. Para uma coluna nova, solte numa das vagas tracejadas que aparecem nas pontas e entre as colunas durante o arraste (até ' + MAX_LINHA + ' por linha). A barra azul mostra onde ele vai cair. Com a alça em foco, use as setas; Alt + seta para cima ou para baixo une à linha vizinha. Dividir reparte a tabela do bloco em partes lado a lado (cada clique avança e, no fim, desfaz): até 4 sozinho na linha, até 2 meio a meio; com 3 ou 4 colunas não divide. Ocultos ficam no fim da página.'));
+
+  const limpar = () => {
+    if (!painelEl) return;
+    painelEl.classList.remove('sp-pl-em-arraste');
+    painelEl.querySelectorAll('.sp-pl-sobre, .sp-pl-sobre-cima, .sp-pl-sobre-baixo, .sp-pl-arrastando')
+      .forEach(n => n.classList.remove('sp-pl-sobre', 'sp-pl-sobre-cima', 'sp-pl-sobre-baixo', 'sp-pl-arrastando'));
   };
-  lista('ordem', 'Na página', '');
-  lista('ocultos', 'Ocultos', 'Nenhum bloco oculto.');
+  const alcaDe = (slug, chave, titulo) => {
+    const alca = el('span', { className: 'sp-pl-alca', tabIndex: 0, role: 'button', title: 'Arrastar para mudar a posição (ou setas do teclado)', dataset: { k: 'a' + slug } });
+    alca.setAttribute('aria-label', 'Mover ' + titulo + (chave === 'linhas' ? ' (setas; Alt + seta para cima ou para baixo une à linha vizinha)' : ' (setas para cima e para baixo)'));
+    alca.insertAdjacentHTML('beforeend', SVG_ALCA);
+    alca.draggable = true;
+    return alca;
+  };
+  const botaoVisibilidade = (slug, ehOculto) => {
+    const b = el('button', { type: 'button', className: 'sp-pl-btn', title: ehOculto ? 'Mostrar na página' : 'Ocultar', dataset: { k: 'o' + slug } });
+    b.insertAdjacentHTML('beforeend', ehOculto ? ICONE_MOSTRAR : ICONE_OCULTAR);
+    b.setAttribute('aria-label', (ehOculto ? 'Mostrar' : 'Ocultar') + ': ' + porSlug[slug].titulo);
+    b.addEventListener('click', () => mudar(x => (ehOculto ? mostrar(x, slug) : ocultar(x, slug))));
+    return b;
+  };
+  // Alterna desligado → 2 → … → limite → desligado (limite: 4 sozinho na linha, 2 meio a meio, sem divisão com 3 ou 4 colunas);
+  // o número de partes em vigor aparece no próprio botão.
+  const botaoDividir = (slug) => {
+    const lim = limiteDivisao(c, slug), pode = lim >= 2;
+    const n = Math.min(c.dividir[slug] || 0, lim), prox = n >= lim ? 0 : Math.max(2, n + 1);
+    const titulo = !pode ? 'Numa linha com 3 ou 4 colunas o bloco não se divide'
+      : (n ? 'Dividido em ' + n + ' partes. ' : '') + (prox ? 'Clique para dividir em ' + prox + ' partes' : 'Clique para desfazer a divisão');
+    const b = el('button', { type: 'button', className: 'sp-pl-btn', title: titulo, disabled: !pode, dataset: { k: 'v' + slug } });
+    b.insertAdjacentHTML('beforeend', ICONE_DIVIDIR);
+    if (n) b.append(el('span', { className: 'sp-pl-partes' }, n + '×'));
+    b.setAttribute('aria-label', 'Dividir em partes: ' + porSlug[slug].titulo + (n ? ' (' + n + ' partes)' : ''));
+    b.setAttribute('aria-pressed', String(!!n));
+    b.addEventListener('click', () => mudar(x => { if (prox) x.dividir[slug] = prox; else delete x.dividir[slug]; }));
+    return b;
+  };
+
+  // ---- Na página: linhas de até MAX_LINHA colunas, cada coluna com um ou mais blocos empilhados; entre as linhas (e antes da
+  // primeira e depois da última) há faixas de soltura ----
+  const total = c.linhas.reduce((n, r) => n + r.reduce((m, col) => m + col.length, 0), 0);
+  painelEl.append(el('h3', null, 'Na página (' + total + ')'));
+  const ul = el('ul', { className: 'sp-pl-linhas' });
+  ul.setAttribute('aria-label', 'Na página');
+  const soltar = (origem, aplicarNoCfg) => { arrastando = null; painelEl.classList.remove('sp-pl-em-arraste'); mudar(x => { tirar(x, origem); aplicarNoCfg(x); arrumar(x); }); };
+  const zona = (idx) => {
+    const z = el('li', { className: 'sp-pl-entre' });
+    z.setAttribute('aria-hidden', 'true');
+    z.addEventListener('dragover', (e) => {
+      if (!arrastando || arrastando.chave !== 'linhas') return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      z.classList.add('sp-pl-sobre');
+    });
+    z.addEventListener('dragleave', () => z.classList.remove('sp-pl-sobre'));
+    z.addEventListener('drop', (e) => {
+      if (!arrastando || arrastando.chave !== 'linhas') return;
+      e.preventDefault();
+      // O índice vale antes da retirada: a linha de origem, se esvaziar, só some depois (arrumar).
+      const origem = arrastando.slug;
+      soltar(origem, x => x.linhas.splice(idx, 0, [[origem]]));
+    });
+    return z;
+  };
+  // Vaga de coluna nova: nas pontas e entre as colunas de cada linha. Fica recolhida e só abre durante o arraste (classe
+  // sp-pl-em-arraste no painel). Recusa se a linha já tem MAX_LINHA colunas, salvo quando o bloco arrastado é sozinho numa coluna dela.
+  const vaga = (rIdx, cIdx, r) => {
+    const v = el('div', { className: 'sp-pl-vaga', title: 'Nova coluna aqui' });
+    v.setAttribute('aria-hidden', 'true');
+    const aceita = () => arrastando && arrastando.chave === 'linhas' &&
+      (r.length < MAX_LINHA || r.some(col => col.length === 1 && col[0] === arrastando.slug));
+    v.addEventListener('dragover', (e) => {
+      if (!aceita()) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      v.classList.add('sp-pl-sobre');
+    });
+    v.addEventListener('dragleave', () => v.classList.remove('sp-pl-sobre'));
+    v.addEventListener('drop', (e) => {
+      if (!aceita()) return;
+      e.preventDefault();
+      const origem = arrastando.slug;
+      // Índices de antes da retirada: a coluna de origem, se esvaziar, só some depois (arrumar).
+      soltar(origem, x => x.linhas[rIdx].splice(cIdx, 0, [origem]));
+    });
+    return v;
+  };
+  const MODOS_SOBRE = ['cima', 'baixo'];
+  const chip = (slug) => {
+    const bloco = porSlug[slug];
+    const alca = alcaDe(slug, 'linhas', bloco.titulo);
+    const cel = el('div', { className: 'sp-pl-chip' },
+      el('div', { className: 'sp-pl-chip-topo' }, alca, el('span', { className: 'sp-pl-nome' }, bloco.titulo)),
+      el('div', { className: 'sp-pl-chip-acoes' }, botaoVisibilidade(slug, false), botaoDividir(slug)));
+    alca.addEventListener('keydown', (e) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      mudar(x => mover(x, slug, e.key, e.altKey));
+    });
+    alca.addEventListener('dragstart', (e) => {
+      arrastando = { slug, chave: 'linhas' };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', slug);
+      try { e.dataTransfer.setDragImage(cel, 12, 12); } catch (_) { /* sem imagem própria: vale a da alça */ }
+      cel.classList.add('sp-pl-arrastando');
+      // Abre as vagas de coluna depois do início do arraste: mexer no layout dentro do dragstart cancela o arraste no Chromium.
+      setTimeout(() => { if (arrastando && painelEl) painelEl.classList.add('sp-pl-em-arraste'); }, 0);
+    });
+    alca.addEventListener('dragend', () => { arrastando = null; limpar(); });
+    // Sobre outro bloco só se empilha: metade de cima = acima dele, metade de baixo = abaixo, na mesma coluna. Coluna nova é
+    // pelas vagas (pontas e entre colunas), para a posição da alça não decidir o lado sem querer.
+    const regiao = (e) => { const r = cel.getBoundingClientRect(); return e.clientY - r.top < r.height / 2 ? 'cima' : 'baixo'; };
+    const aceita = () => arrastando && arrastando.chave === 'linhas' && arrastando.slug !== slug;
+    cel.addEventListener('dragover', (e) => {
+      const modo = regiao(e);
+      MODOS_SOBRE.forEach(m => cel.classList.toggle('sp-pl-sobre-' + m, m === modo && !!aceita(modo)));
+      if (!aceita(modo)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    cel.addEventListener('dragleave', () => MODOS_SOBRE.forEach(m => cel.classList.remove('sp-pl-sobre-' + m)));
+    cel.addEventListener('drop', (e) => {
+      const modo = regiao(e);
+      if (!aceita(modo)) return;
+      e.preventDefault();
+      const origem = arrastando.slug;
+      soltar(origem, x => {
+        const p = acharBloco(x, slug);
+        x.linhas[p.r][p.c].splice(modo === 'cima' ? p.i : p.i + 1, 0, origem);
+      });
+    });
+    return cel;
+  };
+  if (!c.linhas.length) ul.append(el('li', { className: 'sp-pl-vazio' }, 'Nenhum bloco na página.'));
+  c.linhas.forEach((r, idx) => {
+    ul.append(zona(idx));
+    const partes = [vaga(idx, 0, r)];
+    r.forEach((col, ci) => partes.push(el('div', { className: 'sp-pl-colcfg' }, ...col.map(slug => chip(slug))), vaga(idx, ci + 1, r)));
+    const linha = el('li', { className: 'sp-pl-lin', role: 'group' }, ...partes);
+    linha.setAttribute('aria-label', 'Linha ' + (idx + 1));
+    ul.append(linha);
+  });
+  ul.append(zona(c.linhas.length));
+  painelEl.append(ul);
+
+  // ---- Ocultos: lista simples, um por linha; arrastar muda a ordem entre eles ----
+  painelEl.append(el('h3', null, 'Ocultos (' + c.ocultos.length + ')'));
+  const ulO = el('ul');
+  ulO.setAttribute('aria-label', 'Ocultos');
+  if (!c.ocultos.length) ulO.append(el('li', { className: 'sp-pl-vazio' }, 'Nenhum bloco oculto.'));
+  c.ocultos.forEach((slug, i) => {
+    const alca = alcaDe(slug, 'ocultos', porSlug[slug].titulo);
+    const linha = el('li', { className: 'sp-pl-linha' }, alca, el('span', { className: 'sp-pl-nome sp-pl-oculta' }, porSlug[slug].titulo), botaoVisibilidade(slug, true), botaoDividir(slug));
+    alca.addEventListener('keydown', (e) => {
+      const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      if (i + d < 0 || i + d >= c.ocultos.length) return;
+      mudar(x => { const o = x.ocultos; [o[i], o[i + d]] = [o[i + d], o[i]]; });
+    });
+    const depoisDoMeio = (e) => { const r = linha.getBoundingClientRect(); return e.clientY > r.top + r.height / 2; };
+    const daLista = () => arrastando && arrastando.chave === 'ocultos' && arrastando.slug !== slug;
+    alca.addEventListener('dragstart', (e) => { arrastando = { slug, chave: 'ocultos' }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', slug); linha.classList.add('sp-pl-arrastando'); });
+    alca.addEventListener('dragend', () => { arrastando = null; limpar(); });
+    linha.addEventListener('dragover', (e) => {
+      if (!daLista()) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const depois = depoisDoMeio(e);
+      linha.classList.toggle('sp-pl-sobre-cima', !depois);
+      linha.classList.toggle('sp-pl-sobre-baixo', depois);
+    });
+    linha.addEventListener('dragleave', () => linha.classList.remove('sp-pl-sobre-cima', 'sp-pl-sobre-baixo'));
+    linha.addEventListener('drop', (e) => {
+      if (!daLista()) return;
+      e.preventDefault();
+      const origem = arrastando.slug, depois = depoisDoMeio(e);
+      arrastando = null;
+      mudar(x => { const o = x.ocultos; o.splice(o.indexOf(origem), 1); let k = o.indexOf(slug); if (depois) k++; o.splice(k, 0, origem); });
+    });
+    ulO.append(linha);
+  });
+  painelEl.append(ulO);
 
   const restaurar = el('button', { type: 'button', className: 'sp-pl-btn sp-pl-perigo', textContent: confirmandoRestaurar ? 'Confirmar: restaurar o original' : 'Restaurar original', dataset: { k: 'restaurar' } });
   restaurar.addEventListener('click', () => {
@@ -551,6 +781,27 @@ function instalarUi() {
   }
 }
 
+// ---- Links do painel na mesma aba ----
+// As contagens (que chegam depois, pelo "Atualizar") e os títulos dos blocos são links com target="_blank" ou
+// window.open(...). Clique simples abre na própria aba; Ctrl/Shift/clique do meio seguem abrindo em aba nova.
+function urlDoWindowOpen(texto) {
+  const m = /window\.open\(\s*['"]([^'"]+)['"]/.exec(texto || '');
+  return m ? m[1].replace(/&amp;/g, '&') : null;
+}
+function abrirNaMesmaAba(e) {
+  if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.defaultPrevented) return;
+  const link = e.target.closest && e.target.closest('a');
+  if (!link || !raiz.contains(link)) return;
+  const href = link.getAttribute('href') || '';
+  let destino = urlDoWindowOpen(link.getAttribute('onclick')) || (href.startsWith('javascript:') ? urlDoWindowOpen(href) : null);
+  if (!destino && link.target === '_blank' && href && !href.startsWith('javascript:') && !href.startsWith('#')) destino = link.href;
+  if (!destino) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  location.href = new URL(destino, location.href).href;
+}
+raiz.addEventListener('click', abrirNaMesmaAba, true);
+
 // ---- Execução única ----
 instalarUi();
 semCabecalhos();
@@ -561,3 +812,9 @@ if (salva) {
   // Mantém o CSS inicial em dia com o que a página mostra (blocos novos, ocultos que sumiram).
   salvar(cfgAtual);
 }
+// Ao abrir o painel, dispara uma vez o "Atualizar tudo" (mesmo caminho do clique; só roda enquanto a fila roda).
+// Deixa a página pintar antes, porque o Relatório Geral segura a tela por alguns segundos.
+setTimeout(() => {
+  const botao = document.getElementById('sp-pl-atualizar');
+  if (botao && botao.isConnected && !botao.disabled) botao.click();
+}, 300);

@@ -69,7 +69,11 @@ const quadro = $('#quadro');
 
 // ---------- Modelo ----------
 const ehBase = (g) => modulo === 'evt' && g === GRUPO_BASE_EVENTOS;
-const chaveDe = (item) => (modulo === 'loc' ? item : item.text);
+// Identidade: localizador = ID do eproc; evento = código do eproc (o texto é só a etiqueta). Evento cujo "id" é apenas o
+// código CNJ do fim do texto (captura antiga) não tem identidade própria e vale o texto. Mesma regra de smart-eventos.js.
+const codigoCnj = (texto) => { const m = /\((\d+)\)\s*$/.exec(String(texto || '')); return m ? m[1] : null; };
+const chaveDoEvento = (o) => { const id = o && o.id != null ? String(o.id).trim() : ''; return id && id !== codigoCnj(o.text) ? 'id:' + id : 'tx:' + o.text; };
+const chaveDe = (item) => (modulo === 'loc' ? item : chaveDoEvento(item));
 const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const clonar = (o) => JSON.parse(JSON.stringify(o));
 const gruposVisiveis = () => (dados ? dados.grupos.filter(g => !ehBase(g)) : []);
@@ -82,7 +86,7 @@ function reconstruirCatalogo() {
 function itensDoGrupo(g) {
     const lista = (dados && dados.estrutura[g]) || [];
     if (modulo === 'loc') return lista.filter(id => catalogoMapa.has(id)).map(id => ({ k: id, r: catalogoMapa.get(id) }));
-    return lista.map(o => ({ k: o.text, r: o.text }));
+    return lista.map(o => ({ k: chaveDoEvento(o), r: o.text }));
 }
 
 /** Chaves na ordem em que aparecem no quadro (Sem grupo, depois os grupos). */
@@ -269,7 +273,9 @@ function atualizarBarraSelecao() {
                     editor.querySelector('button')?.focus();
                 }
             };
-            const form = controlesCor(coresLoc[nome], az, false, async regra => {
+            // Cor própria pelo ID ("id:<ID>", sobrevive à renomeação) e pelo nome (a extensão ainda lê por nome).
+            const form = controlesCor(coresLoc['id:' + item] || coresLoc[nome], az, false, async regra => {
+                await gravarCorPropria(o, 'id:' + item, regra);
                 await gravarCorPropria(o, nome, regra);
                 fechar();
             }, fechar);
@@ -475,7 +481,7 @@ function painelGrupo(nome) {
         li.setAttribute('aria-selected', sel.has(i.k) ? 'true' : 'false');
         li.tabIndex = focoItem === i.k ? 0 : -1;
         if (modulo === 'loc') {
-            const az = regraAZ(i.r), pessoal = coresLoc[nomeLoc(i.r)];
+            const az = regraAZ(i.r), pessoal = coresLoc['id:' + i.k] || coresLoc[nomeLoc(i.r)];
             const cor = az || pessoal;
             if (cor?.cor && CSS.supports('color', cor.cor)) {
                 const amostra = el('span', { className: 'amostra-cor', title: az ? 'Cor do AZFlow' : 'Cor própria' });

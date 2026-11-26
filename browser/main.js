@@ -316,7 +316,8 @@ const menosAbas = require('./menos-abas').criarMenosAbas({
 // "Início e Meus Localizadores na barra" (CFG > Configurações): rapta os dois botões da navbar do eproc para a barra do
 // navegador; o de localizadores abre o painel em colunas, uma janela da shell (botoes-eproc-barra.js + locs-painel-host.js).
 const botoesEprocLigado = () => { try { return configManager.loadConfig().botoesEprocNaBarra !== false; } catch (_) { return false; } };
-const botoesEproc = require('./botoes-eproc-barra').criarBotoesEproc({
+const botoesEprocMod = require('./botoes-eproc-barra');
+const botoesEproc = botoesEprocMod.criarBotoesEproc({
   ativo: botoesEprocLigado,
   aoMudar: () => publicarBotoesEproc(),
   aoCarregar: (wc) => { locsPainel.aoCarregarPagina(wc).catch(() => {}); },
@@ -336,6 +337,15 @@ const cfgLigado = (chave) => { try { return configManager.loadConfig()[chave] !=
 const recursosEproc = require('./eproc-recursos').criarRecursosEproc({
   smartLigado: () => cfgLigado('smartLocsEventos'),
   coloridosLigado: () => cfgLigado('localizadoresColoridos'),
+  barraCapaLigada: () => cfgLigado('barraBotoesCapa'),
+  linhaCapaLigada: () => cfgLigado('linhaCapa'),
+  navegacaoListaLigada: () => cfgLigado('navegacaoLista'),
+  arvoreAutomarcaLigada: () => cfgLigado('arvoreAutomarca'),
+  arvoreColoridaLigada: () => cfgLigado('arvoreColorida'),
+  arvoreEventoCorLigada: () => cfgLigado('arvoreEventoCor'),
+  arvoreCompactaLigada: () => cfgLigado('arvoreCompacta'),
+  menuEventosLigado: () => cfgLigado('menuEventosRapido'),
+  menuEventosAtalho: () => { try { return configManager.loadConfig().menuEventosAtalho || null; } catch (_) { return null; } },
   barraLigada: botoesEprocLigado,
   log: (t, m) => { try { logDebugger(t, m); } catch (_) {} }
 });
@@ -401,6 +411,21 @@ function acaoBotoesEproc(dados) {
   if (!principal) return;
   const wcPrincipal = principal.view.webContents;
   const estado = linksBotoesEproc(principal);
+  // Os botões se comportam como links: clique do meio abre o endereço em aba nova; botão direito mostra o mesmo menu de
+  // link das páginas (nova aba, visualização dividida, copiar endereço).
+  if (dados.acao === 'home-meio' || dados.acao === 'locs-meio' || dados.acao === 'home-menu' || dados.acao === 'locs-menu') {
+    const url = dados.acao.startsWith('home') ? estado.home : estado.locs;
+    if (!url || !botoesEproc.permitido(url)) return;
+    const opcoes = () => ({ referrer: wcPrincipal.getURL(), session: wcPrincipal.session });
+    if (dados.acao.endsWith('-meio')) { locsPainel.fechar(); setImmediate(() => createTab(url, false, opcoes())); return; }
+    locsPainel.fechar();
+    Menu.buildFromTemplate([
+      { label: 'Abrir link em nova aba', click: () => setImmediate(() => createTab(url, false, opcoes())) },
+      { label: '🗖 Abrir em visualização dividida (ao lado)', click: () => setImmediate(() => createSplitTab(principal.id, url, opcoes())) },
+      { label: 'Copiar endereço do link', click: () => require('electron').clipboard.writeText(url) }
+    ]).popup({ window: mainWindow });
+    return;
+  }
   if (dados.acao === 'home') {
     if (botoesEproc.permitido(wcPrincipal.getURL())) botoesEproc.clicarInicio(wcPrincipal, estado.home);
     else wcPrincipal.loadURL(estado.home);
@@ -5490,6 +5515,17 @@ function setupIPC() {
   // Popup da extensão SuperPROC: quais módulos dela o navegador controla agora (mesmos ids). O popup os bloqueia com o
   // aviso "CONTROLADO PELO NAVEGADOR"; o orquestrador da extensão lê a mesma lista na marca da página.
   hostIPC.handle('superproc:modulos-controlados', () => recursosEproc.modulosControlados());
+  // Recursos do eproc no início do documento (eproc-recursos-cedo-preload.js): CSS e código da Barra de Botões da capa.
+  // Também o CSS que esconde Início/Meus Localizadores (botoes-eproc-barra.js), para eles nunca aparecerem na página; o id do
+  // <style> é o que o "devolver" do módulo já remove. Páginas de exclusão (edição da minuta) não recebem.
+  hostIPC.handle('superproc:eproc-cedo', (event) => {
+    const url = String(event.senderFrame?.url || '');
+    const r = recursosEproc.cedoPara(url) || {};
+    if (botoesEprocLigado() && botoesEproc.permitido(url) && !botoesEprocMod.raptoExcluido(url)) {
+      r.estilos = [{ id: 'sp-botoes-eproc-barra-cedo', css: botoesEprocMod.CSS_OCULTAR }];
+    }
+    return (r.css || r.estilos || r.scripts) ? r : null;
+  });
   hostIPC.on('superproc:print-pdf', event => {
     // O frame solicitante é definido pelo Electron, não por dados da página.
     if (event.senderFrame) printToPdf.request(event.sender, event.senderFrame);
@@ -5736,8 +5772,8 @@ function setupIPC() {
     recursosEproc.sincronizar(); // a marca de módulos controlados inclui o Meus Localizadores da barra
     return enabled;
   });
-  // Smart Localizadores & Eventos / Localizadores Coloridos (eproc-recursos.js).
-  for (const [canal, chave] of [['config-set-smart-locs-eventos', 'smartLocsEventos'], ['config-set-localizadores-coloridos', 'localizadoresColoridos']]) {
+  // Smart Localizadores & Eventos / Localizadores Coloridos / Barra de Botões da capa (eproc-recursos.js).
+  for (const [canal, chave] of [['config-set-smart-locs-eventos', 'smartLocsEventos'], ['config-set-localizadores-coloridos', 'localizadoresColoridos'], ['config-set-barra-botoes-capa', 'barraBotoesCapa'], ['config-set-linha-capa', 'linhaCapa'], ['config-set-navegacao-lista', 'navegacaoLista'], ['config-set-arvore-automarca', 'arvoreAutomarca'], ['config-set-arvore-colorida', 'arvoreColorida'], ['config-set-arvore-evento-cor', 'arvoreEventoCor'], ['config-set-arvore-compacta', 'arvoreCompacta'], ['config-set-menu-eventos-rapido', 'menuEventosRapido']]) {
     hostIPC.handle(canal, (event, enabled) => {
       if (!activeDialog || event.sender !== activeDialog.webContents || typeof enabled !== 'boolean') throw Error('Origem inválida.');
       const updated = configManager.loadConfig();
@@ -5747,6 +5783,17 @@ function setupIPC() {
       return enabled;
     });
   }
+  // Atalho do Menu Rápido de Eventos: objeto { code, ctrl, alt, shift, meta } validado pelas mesmas regras do Acesso Rápido, ou null.
+  hostIPC.handle('config-set-menu-eventos-atalho', (event, atalho) => {
+    if (!activeDialog || event.sender !== activeDialog.webContents) throw Error('Origem inválida.');
+    const valido = atalho === null ? null : require('./quick-shortcut-core').normalizarSalvo(atalho);
+    if (atalho !== null && !valido) throw Error('Atalho inválido.');
+    const updated = configManager.loadConfig();
+    updated.menuEventosAtalho = valido;
+    configManager.saveConfig(updated);
+    recursosEproc.sincronizar();
+    return valido;
+  });
   // Organizador do navegador: pedido da página (botão Organizar, via tab-preload.js) e canais da janela.
   hostIPC.on('superproc:organizador-navegador', (event, modulo) => {
     if (!cfgLigado('smartLocsEventos') && !cfgLigado('localizadoresColoridos')) return;
@@ -7824,6 +7871,8 @@ app.whenReady().then(async () => {
   setupIPC();
   setupDownloadManager();
   printToPdf.registerSession(session.defaultSession);
+  // Recursos do eproc que mudam o layout entram no início do documento (ver eproc-recursos-cedo-preload.js).
+  session.defaultSession.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'eproc-recursos-cedo-preload.js') });
   if (V2_SMOKE) prepararExtensoesDoTeste();
   await loadInstalledExtensions();
   createMainWindow();

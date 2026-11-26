@@ -1,0 +1,14 @@
+/* Barra de Botões da capa: CSS inicial. O host (eproc-recursos.js) injeta este arquivo com insertCSS na confirmação da navegação,
+   antes de a página pintar, para a capa já nascer no layout final (sem pular quando o script monta a barra).
+   Só regras de layout fixas; as do visual dos botões ficam em barra-botoes-capa.js. */
+
+/* Espaçamentos finais da área do conteúdo e da linha do título. */
+#page-content-wrapper { padding-top: 0 !important; padding-bottom: 0 !important; }
+#divInfraAreaTela { margin-top: 0 !important; }
+#divInfraBarraLocalizacao > div { align-items: center !important; min-height: 38px !important; } /* 4px de padding + 34px da barra (medido) */
+#divInfraBarraLocalizacao > div > h1 { margin-bottom: 0 !important; }
+#divInfraBarraLocalizacao > div > span.dropleft { display: none !important; } /* o lugar é da barra */
+
+/* Blocos que viram balões: ocultos até o script os mover (recebem .sp-bb-balao). Se o script desistir (teto de 15 s), ele põe
+   .sp-bb-desistiu no <html> e o que sobrou volta a aparecer no lugar original. */
+html:not(.sp-bb-desistiu) :is(#fldAssuntos, #fldInformacoesAdicionais, #fldAcoes, #nav-acoes-processo):not(.sp-bb-balao) { display: none !important; }

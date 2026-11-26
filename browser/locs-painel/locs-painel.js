@@ -44,32 +44,39 @@
     const n = parseInt(hex.slice(1), 16);
     return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 >= 128 ? '#212529' : '#ffffff';
   }
-  // Mesma precedência da extensão: cor do AZflow > cor própria > regra do grupo do Smart Localizadores.
+  // Identidade: o ID do eproc ("selLocalizador" no link, ou o catálogo pelo texto "Nome - Descrição"). O nome é só a etiqueta.
+  // A organização guarda "id:<ID>"; sem ID conhecido (texto ambíguo ou fora do catálogo), guarda o nome, como antes.
+  const PREFIXO_ID = 'id:';
+  const idDoLink = (link) => { try { return link ? new URL(link).searchParams.get('selLocalizador') || null : null; } catch (_) { return null; } };
+  function idsPorTexto(catalogo = lerPoolCores().catalogoLoc) {
+    const mapa = new Map();
+    for (const c of catalogo) {
+      if (!c || typeof c.value !== 'string' || typeof c.text !== 'string') continue;
+      const k = normCor(c.text);
+      mapa.set(k, mapa.has(k) && mapa.get(k) !== c.value ? null : c.value); // texto repetido com IDs diferentes: ambíguo
+    }
+    return mapa;
+  }
+
+  // Mesma precedência da extensão: cor do AZflow > cor própria (pelo ID, depois pelo nome) > regra do grupo do Smart Localizadores.
   function montarCores() {
     const pool = lerPoolCores();
-    const grupoPorTexto = new Map();
+    const grupoPorId = new Map();
     try {
       const grupos = JSON.parse(armazem.getItem(CHAVES_SMARTLOC.grupos) || '[]');
       const estrutura = JSON.parse(armazem.getItem(CHAVES_SMARTLOC.estrutura) || '{}');
-      const textoPorId = new Map(pool.catalogoLoc.filter(c => c && typeof c.value === 'string' && typeof c.text === 'string').map(c => [c.value, c.text]));
       for (const g of Array.isArray(grupos) ? grupos : []) {
         if (g === 'Sem Grupo' || g === 'Ocultos') continue;
-        for (const id of Array.isArray(estrutura[g]) ? estrutura[g] : []) {
-          const texto = textoPorId.get(id);
-          if (!texto) continue;
-          grupoPorTexto.set(normCor(texto), g);
-          const curto = texto.split(/\s+-\s+/)[0];
-          if (!grupoPorTexto.has(normCor(curto))) grupoPorTexto.set(normCor(curto), g);
-        }
+        for (const id of Array.isArray(estrutura[g]) ? estrutura[g] : []) if (!grupoPorId.has(id)) grupoPorId.set(id, g);
       }
     } catch (_) {}
     const valida = (r) => r && typeof r.cor === 'string' && HEX.test(r.cor);
-    return (curto, completo) => {
+    return (curto, id) => {
       const az = pool.az[normCor(curto)];
       if (valida(az)) return { bg: az.cor, tx: HEX.test(az.tx || '') ? az.tx : '#ffffff' };
-      const propria = pool.proprias[normCor(curto)];
+      const propria = (id && pool.proprias[PREFIXO_ID + id]) || pool.proprias[normCor(curto)];
       if (valida(propria)) return { bg: propria.cor, tx: HEX.test(propria.tx || '') ? propria.tx : corDoTexto(propria.cor) };
-      const g = grupoPorTexto.get(normCor(completo)) || grupoPorTexto.get(normCor(curto));
+      const g = id && grupoPorId.get(id);
       const rg = g && pool.regrasGrupos[g];
       if (valida(rg)) return { bg: rg.cor, tx: HEX.test(rg.tx || '') ? rg.tx : corDoTexto(rg.cor) };
       return null;
@@ -223,6 +230,7 @@
         nomeCurto: i.nomeCurto || (i.nomeCompleto ? i.nomeCompleto.split(/\s+-\s+/)[0].trim() : ''),
         qtdTexto: i.qtdTexto || '0',
         link: i.link || null,
+        id: typeof i.id === 'string' && i.id ? i.id : idDoLink(i.link),
         isEmpty: i.isEmpty ?? (i.qtdTexto === '0')
       })).filter(i => i.nomeCompleto);
     } catch (_) { return []; }
@@ -267,10 +275,24 @@
 
   function prepararLista() {
     const { grupos, estrutura } = getEstrutura();
-    const todos = new Set([].concat(...Object.values(estrutura)));
-    dadosCache.forEach(i => { if (!todos.has(i.nomeCompleto)) estrutura['Sem Grupo'].push(i.nomeCompleto); });
+    // Chave de cada localizador: "id:<ID>" quando o ID é conhecido; senão o nome completo.
+    const porTexto = idsPorTexto();
+    // Cópia (não altera dadosCache, que é comparado com a próxima lista buscada).
+    const itensLista = dadosCache.map(i => {
+      const id = i.id || idDoLink(i.link) || porTexto.get(normCor(i.nomeCompleto)) || null;
+      return { ...i, id, chave: id ? PREFIXO_ID + id : i.nomeCompleto };
+    });
+    // Migração: posições guardadas pelo nome passam para a chave do ID. Se o mesmo localizador aparecer duas vezes
+    // (pelo nome e pelo ID), fica a primeira posição.
+    const chavePorNome = new Map(itensLista.filter(i => i.chave !== i.nomeCompleto).map(i => [i.nomeCompleto, i.chave]));
+    const vistos = new Set();
+    for (const g of Object.keys(estrutura)) {
+      if (!Array.isArray(estrutura[g])) { estrutura[g] = []; continue; }
+      estrutura[g] = estrutura[g].map(n => chavePorNome.get(n) || n).filter(n => !vistos.has(n) && vistos.add(n));
+    }
+    itensLista.forEach(i => { if (!vistos.has(i.chave)) { estrutura['Sem Grupo'].push(i.chave); vistos.add(i.chave); } });
     salvarEstrutura(grupos, estrutura);
-    const mapa = new Map(dadosCache.map(i => [i.nomeCompleto, i]));
+    const mapa = new Map(itensLista.map(i => [i.chave, i]));
     const lista = [];
     grupos.forEach(g => {
       lista.push({ tipo: 'HEADER', nome: g });
@@ -420,14 +442,14 @@
         const nome = document.createElement('span'); nome.className = 'quick-loc-name'; nome.textContent = item.nomeCurto;
         const qtd = document.createElement('span'); qtd.className = 'quick-loc-count'; qtd.textContent = item.qtdTexto;
         a.append(nome, qtd);
-        const cor = corDe(item.nomeCurto, item.nomeCompleto);
+        const cor = corDe(item.nomeCurto, item.id);
         if (cor) { a.classList.add('is-colorido'); a.style.setProperty('--loc-bg', cor.bg); a.style.setProperty('--loc-tx', cor.tx); }
         const abrirItem = () => { if (item.link && !item.isEmpty) pedirNavegacao(item.link); };
         a.addEventListener('click', (e) => { e.preventDefault(); abrirItem(); });
         a.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); abrirItem(); } });
         a.addEventListener('dragstart', (e) => {
           e.stopImmediatePropagation();
-          draggedItemNome = item.nomeCompleto; draggedGrupoNome = null; arrasteAtivo = true;
+          draggedItemNome = item.chave; draggedGrupoNome = null; arrasteAtivo = true; // identidade (ID), não o nome
           a.classList.add('dragging');
           e.dataTransfer.clearData();
           e.dataTransfer.effectAllowed = 'move';
@@ -453,7 +475,7 @@
           a.classList.remove('drag-over-top', 'drag-over-bottom');
           if (draggedItemNome) {
             const r = a.getBoundingClientRect();
-            moverItemParaPosicao(draggedItemNome, elem.grupo, item.nomeCompleto, e.clientY < r.top + r.height / 2);
+            moverItemParaPosicao(draggedItemNome, elem.grupo, item.chave, e.clientY < r.top + r.height / 2);
           }
         });
         wrap.appendChild(a);
@@ -677,7 +699,7 @@
     const permitidos = new Set([...estilo.grupos, 'Sem Grupo']);
     const nomes = new Set();
     for (const [grupo, itens] of Object.entries(estilo.estrutura)) {
-      if (!permitidos.has(grupo) || !Array.isArray(itens) || itens.some(n => typeof n !== 'string' || !n.trim())) throw new Error('Estrutura inválida: cada grupo deve conter uma lista de nomes.');
+      if (!permitidos.has(grupo) || !Array.isArray(itens) || itens.some(n => typeof n !== 'string' || !n.trim())) throw new Error('Estrutura inválida. Cada grupo precisa de uma lista de localizadores, como "id:311572627962445867301998362140" ou o nome completo.');
       for (const n of itens) { if (nomes.has(n)) throw new Error('Um localizador não pode aparecer em mais de uma posição.'); nomes.add(n); }
     }
     for (const g of permitidos) if (!Object.hasOwn(estilo.estrutura, g)) estilo.estrutura[g] = [];

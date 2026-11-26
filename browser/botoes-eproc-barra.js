@@ -26,6 +26,12 @@ function permitido(url) {
   } catch (_) { return false; }
 }
 
+// Páginas do eproc onde os botões NÃO são raptados (ficam como o eproc os mostra): edição da minuta.
+const ACOES_SEM_RAPTO = ['minuta_editar'];
+function raptoExcluido(url) {
+  try { return ACOES_SEM_RAPTO.includes((new URL(String(url || '')).searchParams.get('acao') || '').toLowerCase()); } catch (_) { return false; }
+}
+
 const scripts = {
   // Esconde os botões da navbar e devolve os endereços absolutos (ou null, se a página não os tem: login, iframes etc.).
   raptar: () => `(() => {
@@ -74,6 +80,8 @@ function criarBotoesEproc(deps = {}) {
   async function raptar(wc) {
     // Chave desligada: devolve os botões (o preload pode tê-los escondido por uma marca de quando estava ligada).
     if (!ativo()) { await rodar(wc, scripts.devolver()); if (estados.has(wc)) { estados.delete(wc); aoMudar(); } return; }
+    // Página excluída (edição da minuta): não esconde nada nesta página.
+    if (raptoExcluido(wc.getURL())) { if (estados.has(wc)) { estados.delete(wc); aoMudar(); } return; }
     const r = await rodar(wc, scripts.raptar());
     const novo = r && typeof r.home === 'string' && typeof r.locs === 'string' && r.home && r.locs ? { home: r.home, locs: r.locs } : null;
     const antes = estados.get(wc) || null;
@@ -108,4 +116,4 @@ function criarBotoesEproc(deps = {}) {
   return { ligarNaAba, sincronizar, estado: (wc) => estados.get(wc) || null, clicarInicio, permitido };
 }
 
-module.exports = { criarBotoesEproc, permitido, scripts, MUNDO_BOTOES_EPROC, MARCA_STORAGE, CSS_OCULTAR };
+module.exports = { criarBotoesEproc, permitido, raptoExcluido, ACOES_SEM_RAPTO, scripts, MUNDO_BOTOES_EPROC, MARCA_STORAGE, CSS_OCULTAR };

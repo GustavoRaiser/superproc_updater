@@ -16,7 +16,7 @@ const LOCAL_CHANNELS = {
     copilot-coluna-get copilot-coluna-toggle copilot-coluna-clique eproc-botoes-barra-acao eproc-botoes-barra-estado`,
   dialog: `dialog-close dialog-get-data dialog-add-link config-update-link config-remove-link
     config-set-category-links config-save-all-categories config-move-link dialog-navigate-to
-    clear-cache clear-preferences clear-extensions extensions-status clear-all-data dialog-open config-set-corretor-ortografico config-set-menos-abas config-set-botoes-eproc-barra config-set-smart-locs-eventos config-set-localizadores-coloridos config-set-copilot-contexto config-set-copilot-ia-local config-set-copilot-texto-completo config-get-copilot-admin config-get-copilot-politicas-ia config-set-copilot-politica-ia config-set-copilot-politicas-ia-lote config-set-copilot-admin config-get
+    clear-cache clear-preferences clear-extensions extensions-status clear-all-data dialog-open config-set-corretor-ortografico config-set-menos-abas config-set-botoes-eproc-barra config-set-smart-locs-eventos config-set-localizadores-coloridos config-set-barra-botoes-capa config-set-linha-capa config-set-navegacao-lista config-set-arvore-automarca config-set-arvore-colorida config-set-arvore-evento-cor config-set-arvore-compacta config-set-menu-eventos-rapido config-set-menu-eventos-atalho config-set-copilot-contexto config-set-copilot-ia-local config-set-copilot-texto-completo config-get-copilot-admin config-get-copilot-politicas-ia config-set-copilot-politica-ia config-set-copilot-politicas-ia-lote config-set-copilot-admin config-get
     get-download-config set-download-config select-download-folder`,
   cfg: 'cfg-action cfg-close cfg-layout',
   downloads: `downloads-get-recent downloads-open-file downloads-show-in-folder downloads-open-folder
@@ -38,7 +38,7 @@ const LOCAL_CHANNELS = {
 };
 const capabilities = new Map(Object.entries(LOCAL_CHANNELS).map(([role, channels]) => [role, new Set(channels.split(/\s+/))]));
 const PAGE_CHANNELS = new Set(['tab-open-process-url', 'tab-page-close-request', 'tab-refresh-parent-request',
-  'page-navbar-dimension', 'superproc:eproc-session', 'panel-content-toggle-pin', 'superproc:print-pdf', 'superproc:modulo-usuario', 'superproc:abrir-organizador', 'superproc:organizador-navegador', 'superproc:modulos-controlados',
+  'page-navbar-dimension', 'superproc:eproc-session', 'panel-content-toggle-pin', 'superproc:print-pdf', 'superproc:eproc-cedo', 'superproc:modulo-usuario', 'superproc:abrir-organizador', 'superproc:organizador-navegador', 'superproc:modulos-controlados',
   // Ponte do cr-host: só o quadro principal da coluna do Copilot numa origem do cr-host (conferido em allowPage).
   'copilot-cr-abrir', 'copilot-cr-msg', 'copilot-cr-fechar', 'copilot-cr-unico', 'copilot-cr-nota']);
 

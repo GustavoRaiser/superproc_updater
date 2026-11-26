@@ -830,6 +830,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rect = () => { const r = locs.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
     let hoverTimer = null;
     home.addEventListener('click', () => api.acaoBotoesEproc('home'));
+    // Como um link: clique do meio abre em aba nova; botão direito abre o menu de link do navegador.
+    for (const [botao, nome] of [[home, 'home'], [locs, 'locs']]) {
+      botao.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // sem rolagem automática
+      botao.addEventListener('auxclick', (e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        clearTimeout(hoverTimer);
+        api.acaoBotoesEproc(nome + '-meio');
+      });
+      botao.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        clearTimeout(hoverTimer);
+        api.acaoBotoesEproc(nome + '-menu');
+      });
+    }
     locs.addEventListener('mouseenter', () => {
       clearTimeout(hoverTimer);
       hoverTimer = setTimeout(() => api.acaoBotoesEproc('locs-entrou', rect()), 150);

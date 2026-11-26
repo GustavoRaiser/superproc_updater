@@ -49,7 +49,10 @@ const scripts = {
       const nomeCompleto = tds[0].textContent.trim();
       const link = tds[1].querySelector('a');
       const qtdTexto = tds[1].textContent.trim();
+      let id = null; // identidade do localizador no eproc (o nome pode mudar)
+      try { id = link && link.getAttribute('href') ? new URL(link.getAttribute('href'), destino).searchParams.get('selLocalizador') : null; } catch (_) {}
       lista.push({
+        id,
         nomeCompleto,
         nomeCurto: nomeCompleto.split(/\\s+-\\s+/)[0].trim(),
         qtdTexto,

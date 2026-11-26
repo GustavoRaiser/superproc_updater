@@ -3,7 +3,8 @@
 // (modules/painel/localizadores_coloridos.js): pinta e ordena os localizadores por prioridade na capa e nas listas;
 // botão direito na pílula define cor e prioridade. Sem chrome.* e sem a extensão: cores próprias, cores vistas no AZflow,
 // regras por grupo e catálogo ficam na pool comum do localStorage do eproc (superproc_pool_cores_v1, docs/ia/POOL-COMUM.md),
-// além da cópia local por nome (MEUS_LOCALIZADORES_CONFIG_V2). Concatenado pelo host depois de base.js (SPBase).
+// além da cópia local (MEUS_LOCALIZADORES_CONFIG_V2). Cor própria identificada pelo ID do localizador ("id:<ID>"), com o
+// nome como reserva; ver "Identidade" em docs/ia/POOL-COMUM.md. Concatenado pelo host depois de base.js (SPBase).
 
 (function localizadoresColoridos() {
   if (window.__spColoridos) return;
@@ -36,7 +37,8 @@
         }
 
         let configs = carregarConfiguracoes();
-        const isPaginaCapa = window.location.href.includes('acao=processo_selecionar');
+        // "Capa": a da consulta do processo e a "Capa do Processo" que a tela de minuta repete (mesma região #dvLocalizadoresOrgao).
+        const isPaginaCapa = window.location.href.includes('acao=processo_selecionar') || !!document.getElementById('dvLocalizadoresOrgao');
 
         if (!document.getElementById('superproc-locs-coloridos-css')) {
             const style = document.createElement('style');
@@ -75,6 +77,32 @@
                     background-color: var(--loc-bg, #e9ecef) !important;
                     color: var(--loc-tx, #495057) !important;
                     border: var(--loc-border, 1px solid #ced4da) !important;
+                }
+
+                /* Lista de processos do localizador: um item (pílula + memo) por localizador, na ordem da prioridade */
+                .sp-loc-lista { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+                .sp-loc-item { display: inline-flex; align-items: center; gap: 2px; }
+                .sp-loc-item[hidden] { display: none !important; }
+                /* Mesma pílula da capa: 31 px de altura, 13 px de fonte, canto de 6 px */
+                .sp-loc-item .meu-loc-pill {
+                    height: 31px !important;
+                    min-height: 31px !important;
+                    max-height: 31px !important;
+                    padding: 0 10px !important;
+                    margin: 0 !important;
+                    border-radius: 6px !important;
+                    font-size: 13px !important;
+                    text-decoration: none !important;
+                }
+                .meu-loc-pill[data-loc-fixo]::after {
+                    content: '';
+                    flex: 0 0 12px;
+                    width: 12px;
+                    height: 12px;
+                    margin-left: 5px;
+                    background: currentColor;
+                    clip-path: polygon(33% 12%, 67% 12%, 67% 21%, 62% 21%, 62% 46%, 75% 58%, 75% 67%, 54% 67%, 54% 87%, 50% 96%, 46% 87%, 46% 67%, 25% 67%, 25% 58%, 38% 46%, 38% 21%, 33% 21%);
+                    pointer-events: none;
                 }
 
                 /* Na Capa do processo, os localizadores observam a altura dos botões (31px) */
@@ -167,7 +195,14 @@
                     cursor: pointer !important;
                 }
 
-                /* Os memos (a.memoLocalizadorOrgao<id>) ficam visíveis ao lado de cada localizador; só o texto cru e o separador somem. */
+                /* Os ícones de memo (a.memoLocalizadorOrgao<id>) ficam escondidos ao lado das pílulas (capa e listas); o acesso
+                   ao memo está no menu do botão direito da pílula (abrirMenu). O link continua no DOM: o menu o aciona. */
+                #dvLocalizadoresOrgao a[class*="memoLocalizadorOrgao"],
+                .sp-loc-lista a[class*="memoLocalizadorOrgao"] {
+                    display: none !important;
+                }
+
+                /* Só o texto cru e o separador somem */
                 span[data-azflow-listaprocloc-locator="true"],
                 .azflow-separador-localizador {
                     pointer-events: none !important;
@@ -187,13 +222,38 @@
         const pendentesAZ = new Map();
         let timerAZ;
 
-        // Cores próprias: a pool comum (proprias, por nome normalizado) e a cópia local por nome (MEUS_LOCALIZADORES_CONFIG_V2).
+        // Identidade: o ID do eproc. Na capa ele vem do campo oculto; nas listas, do catálogo (nome -> ID, se não ambíguo).
+        // A regra própria é lida primeiro pelo ID ("id:<ID>") e, na falta dele, pelo nome (dados antigos e a extensão).
+        // Ordem: o código gravado no próprio elemento (data-loc-id, vindo da lista do eproc), o campo oculto da capa e o catálogo.
+        let indice = SPBase.indiceLocalizadores();
+        const idDe = (nome, el = null) => (el && el.getAttribute && el.getAttribute('data-loc-id')) || idsDaCapa().nomeParaId.get(norm(nome)) || indice.idDe(nome);
+        function chavesDe(nome, el = null) {
+            const id = idDe(nome, el);
+            return { id, chaves: [id && SPBase.chaveDoId(id), nome, norm(nome)].filter(Boolean) };
+        }
+        function regraPropria(nome, el = null) {
+            for (const k of chavesDe(nome, el).chaves) if (configs[k]) return configs[k];
+            return {};
+        }
+
+        // Cores próprias: a pool comum (proprias, por "id:<ID>" e por nome normalizado) e a cópia local (MEUS_LOCALIZADORES_CONFIG_V2).
+        // Migração: cada regra guardada só pelo nome ganha a chave do ID quando o catálogo resolve o nome sem ambiguidade.
+        // A chave por nome fica (a extensão ainda lê por nome); a do ID prevalece e sobrevive à renomeação.
         async function atualizarRegrasProprias() {
-            let lidas = SPBase.lerPool().proprias;
+            const pool = SPBase.lerPool();
+            indice = SPBase.indiceLocalizadores(pool.catalogoLoc);
+            let lidas = pool.proprias;
             const locais = carregarConfiguracoes();
-            const espelho = Object.fromEntries(Object.entries(locais).map(([nome, regra]) => [norm(nome), regra]));
-            if (Object.keys(espelho).some(nome => !Object.hasOwn(lidas, nome))) {
-                lidas = SPBase.mudarPool(p => { p.proprias = { ...espelho, ...p.proprias }; }).proprias;
+            const espelho = Object.fromEntries(Object.entries(locais).map(([nome, regra]) => [nome.startsWith(SPBase.PREFIXO_ID) ? nome : norm(nome), regra]));
+            const porId = {};
+            for (const [nome, regra] of Object.entries({ ...espelho, ...lidas })) {
+                if (nome.startsWith(SPBase.PREFIXO_ID)) continue;
+                const id = indice.idDe(nome);
+                const k = id && SPBase.chaveDoId(id);
+                if (k && !Object.hasOwn(lidas, k) && !Object.hasOwn(espelho, k) && !Object.hasOwn(porId, k)) porId[k] = regra;
+            }
+            if (Object.keys(porId).length || Object.keys(espelho).some(nome => !Object.hasOwn(lidas, nome))) {
+                lidas = SPBase.mudarPool(p => { p.proprias = { ...espelho, ...porId, ...p.proprias }; }).proprias;
             }
             const nomes = new Map(Object.keys(locais).map(nome => [norm(nome), nome]));
             for (const [chave, regra] of Object.entries(lidas)) {
@@ -230,6 +290,9 @@
 
         let regrasGrupos = {};                  // { grupo: { cor, tx, prio } } (pool comum, editado no Organizador)
         let grupoPorId = new Map();             // id do localizador -> grupo do Smart
+        // Localizadores que não aparecem nas pílulas da capa e das listas: os do grupo "Ocultos" e os de grupos com o olho fechado
+        // no Organizador. Mesma base do Smart Localizadores (eproc_smartloc_*).
+        let idsOcultos = new Set();
         let grupoPorNomeCatalogo = new Map();   // nome normalizado (derivado de "Localizador - Nome") -> grupo; usado onde não há id (listas)
 
         // O texto nativo é "Localizador - Nome". Quando os dois são iguais ("X - X") o nome é exato; senão há candidatos (prefixos).
@@ -247,6 +310,7 @@
         async function carregarGrupos() {
             try {
                 const pool = SPBase.lerPool();
+                indice = SPBase.indiceLocalizadores(pool.catalogoLoc);
                 regrasGrupos = pool.regrasGrupos;
                 const local = lerLocal('loc');
                 const textoPorId = new Map(pool.catalogoLoc.map(c => [c.value, c.text]));
@@ -264,6 +328,11 @@
                 }
                 grupoPorId = porId;
                 grupoPorNomeCatalogo = new Map([...aprox, ...exatos]); // os exatos prevalecem
+                const ocultos = new Set();
+                const doGrupo = (g) => (Array.isArray(local.estrutura[g]) ? local.estrutura[g] : []);
+                for (const id of doGrupo(SPBase.GRUPO_OCULTOS)) ocultos.add(id);
+                for (const g of local.gruposOcultos) for (const id of doGrupo(g)) ocultos.add(id);
+                idsOcultos = ocultos;
             } catch (erro) { /* sem grupos do Smart (módulo desligado ou ainda sem dados): segue só com as regras próprias */ }
         }
 
@@ -279,17 +348,16 @@
             return { nomeParaId, idParaNome };
         }
 
-        function grupoDoLocalizador(nome) {
-            const k = norm(nome);
-            const id = idsDaCapa().nomeParaId.get(k);
+        function grupoDoLocalizador(nome, el = null) {
+            const id = idDe(nome, el);
             if (id && grupoPorId.has(id)) return grupoPorId.get(id);
-            return grupoPorNomeCatalogo.get(k) || null;
+            return grupoPorNomeCatalogo.get(norm(nome)) || null;
         }
 
         // Cor: AZflow > cor própria (usuário) > cor do grupo > padrão. Prioridade: própria (diferente de 9) > do grupo > 9.
         function resolverRegras(nome, fonteEstilo) {
-            const esp = configs[nome] || configs[norm(nome)] || {};
-            const grupo = grupoDoLocalizador(nome);
+            const esp = regraPropria(nome, fonteEstilo);
+            const grupo = grupoDoLocalizador(nome, fonteEstilo);
             const rg = (grupo && regrasGrupos[grupo]) || {};
 
             const varBgAz = fonteEstilo.style.getPropertyValue('--azflow-locustom-bg') ||
@@ -314,7 +382,9 @@
             const regras = resolverRegras(nome, elOriginal || el);
             const bgFinal = regras.bg;
             const txFinal = regras.tx;
-            const bordaFinal = (bgFinal === '#e9ecef' || bgFinal === 'rgb(233, 236, 239)') ? '1px solid #ced4da' : '1px solid transparent';
+            // Cor própria: borda interna de 1 px preta a 20%. O fundo se estende sob a borda (background-clip: border-box),
+            // então ela escurece a própria cor escolhida sem aumentar a caixa. Sem cor (cinza padrão), mantém a borda neutra.
+            const bordaFinal = (bgFinal === '#e9ecef' || bgFinal === 'rgb(233, 236, 239)') ? '1px solid #ced4da' : '1px solid rgba(0, 0, 0, 0.2)';
 
             el.setAttribute('data-azflow-hover-configured', 'true');
             el.toggleAttribute('data-superproc-cor-azflow', regras.origemCor === 'azflow');
@@ -322,7 +392,7 @@
             el.style.setProperty('--loc-tx', txFinal);
             el.style.setProperty('--loc-border', bordaFinal);
 
-            const isCapa = isPaginaCapa || el.id === 'AbreLocalizadores';
+            const isCapa = isPaginaCapa || el.id === 'AbreLocalizadores' || !!el.closest('.sp-loc-item'); // as listas copiam o tamanho da capa
             const alturaLoc = isCapa ? '31px' : '22px';
             const paddingLoc = isCapa ? '0 10px' : '0 8px';
             const fontSizeLoc = isCapa ? '13px' : '12px';
@@ -362,7 +432,7 @@
             if (target) {
                 e.preventDefault();
                 e.stopPropagation();
-                abrirMenu(e, target.getAttribute('data-loc-nome'), target.hasAttribute('data-superproc-cor-azflow'));
+                abrirMenu(e, target.getAttribute('data-loc-nome'), target.hasAttribute('data-superproc-cor-azflow'), target);
             }
         }, true);
 
@@ -440,18 +510,111 @@
             return true;
         }
 
+        // ---- Listas de processos: por localizador (localizador_processos_lista) e relatório geral (relatorio_geral/index) ----
+        // As duas trazem o código de cada localizador (<input name="numIdLocalizadorOrgao" value="ID">), mas montam a coluna de
+        // forma diferente:
+        //   por localizador: <input> Nome (o fixo em <u><b>) <a class="memoLocalizadorOrgaoID"> " - " ...
+        //   relatório geral: "• Nome" ("(Princ.)" no principal) <a class="memoLocalizadorOrgaoID"> <input> <br> ...
+        // Cada página tem o seu leitor de célula; a montagem é a mesma e copia a estética da capa: uma pílula por localizador
+        // (31 px, 13 px, canto de 6 px), o memo ao lado, o fixo/principal com o alfinete, ordenadas pela prioridade. O código
+        // fica no data-loc-id da pílula. O que não for reconhecido (sem os campos ocultos) segue o caminho antigo (texto solto).
+        const ehMemo = (n) => n.nodeType === Node.ELEMENT_NODE && String(n.className || '').includes('memoLocalizadorOrgao');
+        const ehCodigo = (n) => n.nodeType === Node.ELEMENT_NODE && n.matches('input[name="numIdLocalizadorOrgao"]');
+
+        function lerCelulaPorLocalizador(celula) {
+            const entradas = [];
+            let atual = null;
+            for (const no of Array.from(celula.childNodes)) {
+                if (ehCodigo(no)) { atual = { input: no, nomeNos: [], memo: null }; entradas.push(atual); }
+                else if (atual && !atual.memo) {
+                    if (ehMemo(no)) atual.memo = no; else atual.nomeNos.push(no);
+                }
+            }
+            for (const e of entradas) {
+                e.nome = e.nomeNos.map(n => n.textContent).join('').replace(/\s+/g, ' ').replace(/^\s*-\s*|\s*-\s*$/g, '').trim();
+                e.fixo = e.nomeNos.some(n => n.nodeType === Node.ELEMENT_NODE && (n.matches('u, b, strong') || n.querySelector('u, b, strong')));
+            }
+            return entradas;
+        }
+
+        function lerCelulaDoRelatorio(celula) {
+            const segmentos = [[]];
+            for (const no of Array.from(celula.childNodes)) {
+                if (no.nodeType === Node.ELEMENT_NODE && no.tagName === 'BR') segmentos.push([]); else segmentos[segmentos.length - 1].push(no);
+            }
+            const entradas = [];
+            for (const seg of segmentos) {
+                const input = seg.find(ehCodigo);
+                if (!input) continue;
+                const memo = seg.find(ehMemo) || null;
+                const nomeNos = seg.filter(n => n !== input && n !== memo && !(n.nodeType === Node.ELEMENT_NODE && n.matches('input')));
+                let nome = nomeNos.map(n => n.textContent).join('').replace(/\s+/g, ' ').replace(/^\s*•\s*/, '').trim();
+                const principal = /\s*\(Princ\.\)\s*$/i.test(nome); // o principal do relatório é o fixo da capa
+                if (principal) nome = nome.replace(/\s*\(Princ\.\)\s*$/i, '').trim();
+                entradas.push({ input, memo, nomeNos, nome, fixo: principal });
+            }
+            return entradas;
+        }
+
+        function pintarListaDeLocalizadores(lista) {
+            const itens = Array.from(lista.children).map((item, ordem) => {
+                const pill = item.querySelector('.meu-loc-pill');
+                const nome = pill ? pill.textContent.trim() : '';
+                // Grupo oculto: o item (pílula e memo) some da lista; segue no DOM para voltar quando o grupo deixar de ser oculto.
+                const idItem = pill && pill.getAttribute('data-loc-id');
+                item.hidden = !!idItem && idsOcultos.has(idItem);
+                let prio = 9;
+                if (pill) { aplicarEstiloBase(pill, nome, true); prio = resolverRegras(nome, pill).prio; }
+                return { item, prio, ordem };
+            });
+            itens.sort((a, b) => (a.prio - b.prio) || (a.ordem - b.ordem));
+            if (itens.some((x, i) => lista.children[i] !== x.item)) itens.forEach(x => lista.append(x.item));
+        }
+
+        function montarCelulaDeLocalizadores(celula, ler) {
+            let lista = celula.querySelector(':scope > .sp-loc-lista');
+            if (!lista) {
+                const entradas = ler(celula).filter(e => e.nome);
+                if (!entradas.length) return false;
+                lista = document.createElement('span');
+                lista.className = 'sp-loc-lista';
+                for (const e of entradas) {
+                    const item = document.createElement('span');
+                    item.className = 'sp-loc-item';
+                    const pill = document.createElement('span');
+                    pill.textContent = e.nome;
+                    pill.setAttribute('data-loc-id', e.input.value);
+                    if (e.fixo) { pill.setAttribute('data-loc-fixo', ''); pill.title = 'Localizador fixo'; }
+                    pill.className = 'meu-loc-pill';
+                    item.append(e.input, pill);
+                    if (e.memo) item.append(e.memo);
+                    lista.append(item);
+                    e.nomeNos.forEach(n => n.remove()); // o nome original vira só a pílula
+                }
+                // O que sobrou na célula são separadores (" - ", "•", quebras de linha) e espaços.
+                celula.querySelectorAll(':scope > br').forEach(b => b.remove());
+                for (const no of Array.from(celula.childNodes)) if (no.nodeType === Node.TEXT_NODE && !no.textContent.replace(/[\s•-]/g, '')) no.remove();
+                celula.prepend(lista);
+            }
+            pintarListaDeLocalizadores(lista); // também nas repinturas: cor ou prioridade mudaram
+            return true;
+        }
+
         function pintarListaNativa() {
-            if (new URLSearchParams(location.search).get('acao') !== 'localizador_processos_lista') return;
+            const acao = new URLSearchParams(location.search).get('acao');
+            const ler = acao === 'localizador_processos_lista' ? lerCelulaPorLocalizador : acao === 'relatorio_geral/index' ? lerCelulaDoRelatorio : null;
+            if (!ler) return;
+            const cabecalho = (celula) => celula.tagName === 'TH' && /^localizador(?:es)?$/.test(norm(celula.textContent));
             for (const tabela of document.querySelectorAll('table')) {
-                const linhaCabecalho = Array.from(tabela.rows).find(linha =>
-                    Array.from(linha.cells).some(celula => celula.tagName === 'TH' && norm(celula.textContent) === 'localizadores'));
+                const linhaCabecalho = Array.from(tabela.rows).find(linha => Array.from(linha.cells).some(cabecalho));
                 if (!linhaCabecalho) continue;
-                const coluna = Array.from(linhaCabecalho.cells).findIndex(celula =>
-                    celula.tagName === 'TH' && norm(celula.textContent) === 'localizadores');
+                const coluna = Array.from(linhaCabecalho.cells).findIndex(cabecalho);
                 for (const linha of tabela.rows) {
                     const celula = linha.cells[coluna];
                     if (celula?.tagName !== 'TD' || linha.cells.length !== linhaCabecalho.cells.length ||
                         celula.querySelector('[data-azflow-listaprocloc-locator="true"]')) continue;
+                    if (montarCelulaDeLocalizadores(celula, ler)) continue;
+                    if (ler !== lerCelulaPorLocalizador) continue; // o texto solto só existe na lista por localizador
                     for (const no of Array.from(celula.childNodes)) {
                         if (no.nodeType === Node.TEXT_NODE) {
                             const partes = (no.textContent || '').split(/(\s+-\s+|^\s*-\s*|\s*-\s*$)/);
@@ -459,7 +622,7 @@
                             let alterado = false;
                             for (const [i, texto] of partes.entries()) {
                                 const nome = texto.trim();
-                                if (i % 2 || !nome || /^feito\s*✅?$/iu.test(nome)) {
+                                if (i % 2 || !nome) {
                                     fragmento.append(texto);
                                     continue;
                                 }
@@ -475,7 +638,7 @@
                             (no.matches('.meu-loc-pill, b, strong, u') || no.matches('a:not([class*="memoLocalizadorOrgao"])')) &&
                             !no.querySelector('img, svg, input, button')) {
                             const nome = no.textContent.trim();
-                            if (!nome || /^feito\s*✅?$/iu.test(nome)) continue;
+                            if (!nome) continue;
                             no.classList.add('meu-loc-pill');
                             aplicarEstiloBase(no, nome);
                         }
@@ -503,7 +666,8 @@
                             let nome = (clone.textContent || clone.innerText || '').replace(/\s+/g, ' ').trim();
                             if (!nome) nome = a.getAttribute('data-loc-nome') || '';
                             const prio = resolverRegras(nome, a).prio;
-                            return { a, nome, prio };
+                            const idChip = idDe(nome, a);
+                            return { a, nome, prio, oculto: !!idChip && idsOcultos.has(idChip) };
                         });
                         const memos = memosDaCapa(capaDiv, locLinks);
 
@@ -517,9 +681,14 @@
                                        null;
 
                         // O memo de cada localizador acompanha o chip dele (não fica para trás quando a ordem muda).
+                        // Localizadores de grupos ocultos somem da capa. Se TODOS do processo estiverem ocultos, nenhum é escondido:
+                        // o clique na pílula é o que abre a edição dos localizadores (abreLocalizadores), e sem ela não haveria como editar.
+                        const esconderOcultos = !dados.every(d => d.oculto);
                         dados.forEach(d => {
                             aplicarEstiloBase(d.a, d.nome, false);
                             d.a.style.order = d.prio;
+                            d.a.toggleAttribute('data-loc-oculto', esconderOcultos && d.oculto);
+                            if (esconderOcultos && d.oculto) d.a.style.setProperty('display', 'none', 'important'); // vence o display da capa
                             const memo = memos.get(d.a) || null;
                             if (anchor) {
                                 capaDiv.insertBefore(d.a, anchor);
@@ -579,7 +748,18 @@
 
         let menuAtivoCleanup = null;
 
-        function abrirMenu(e, nome, corBloqueada) {
+        // Link do memo do localizador clicado: o da própria linha (listas), senão o do mesmo código (capa).
+        function memoDoLocalizador(nome, alvoEl) {
+            const item = alvoEl && alvoEl.closest ? alvoEl.closest('.sp-loc-item') : null;
+            const daLinha = item && item.querySelector('a[class*="memoLocalizadorOrgao"]');
+            if (daLinha) return daLinha;
+            const { id } = chavesDe(nome, alvoEl);
+            if (!id) return null;
+            const area = (alvoEl && alvoEl.closest && alvoEl.closest('#dvLocalizadoresOrgao')) || document;
+            return area.querySelector('a.memoLocalizadorOrgao' + id) || document.querySelector('a.memoLocalizadorOrgao' + id);
+        }
+
+        function abrirMenu(e, nome, corBloqueada, alvoEl = null) {
             if (menuAtivoCleanup) {
                 menuAtivoCleanup();
             }
@@ -603,7 +783,8 @@
                 top: '-9999px'
             });
 
-            let corAtual = configs[nome]?.cor || '#e9ecef';
+            const regraAtual = regraPropria(nome, alvoEl);
+            let corAtual = regraAtual.cor || '#e9ecef';
             let estaNaPaleta = false;
 
             let htmlPaleta = '<div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; width: 100%;">';
@@ -616,17 +797,31 @@
             htmlPaleta += '</div>';
 
             let corCustomValue = estaNaPaleta ? '#007bff' : corAtual; 
-            const prioAtual = (configs[nome]?.prio !== undefined) ? configs[nome].prio : 9;
-            const grupoDoNome = grupoDoLocalizador(nome);
+            const prioAtual = (regraAtual.prio !== undefined) ? regraAtual.prio : 9;
+            const grupoDoNome = grupoDoLocalizador(nome, alvoEl);
             const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const infoGrupo = grupoDoNome
                 ? `<div style="font-size: 12px; margin-bottom: 8px; color: #555;">Grupo: <b>${esc(grupoDoNome)}</b>${regrasGrupos[grupoDoNome] ? ' (com regra de cor/prioridade)' : ''}</div>`
                 : '';
 
+            // Sem o código, a cor fica guardada só pelo nome e se perde se o localizador for renomeado. O catálogo de códigos
+            // vem da lista de localizadores de destino da tela de minuta; depois disso a cor passa para o código sozinha.
+            const textoCodigo = chavesDe(nome, alvoEl).id ? ''
+                : indice.ambiguo(nome)
+                    ? 'Há mais de um localizador com este nome. Salva aqui, a cor vale para todos eles. Para colorir só este, clique com o botão direito nele na capa do processo.'
+                    : 'Código deste localizador ainda desconhecido: a cor vale só para este nome. Abra uma vez a tela de nova minuta para o SuperPROC ler os códigos. Depois disso, a cor continua mesmo se o localizador for renomeado.';
+            const infoCodigo = textoCodigo
+                ? `<div role="note" style="font-size: 11px; margin-bottom: 8px; padding: 6px 8px; background: #fff8e1; border: 1px solid #ffc107; border-radius: 6px; color: #5c4400;">${textoCodigo}</div>`
+                : '';
+
             menu.innerHTML = `
                 <div style="font-weight: bold; font-size: 14px; margin-bottom: 5px; color: #333; word-break: break-word;">${esc(nome)}</div>
+                ${infoCodigo}
                 ${infoGrupo}
-                <div style="font-size: 13px; margin-bottom: 4px; color: #666;">Prioridade (0-9): <input type="number" id="in-prio" value="${prioAtual}" min="0" max="9" style="width: 45px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 4px;"></div>
+                <div style="font-size: 13px; margin-bottom: 4px; color: #666; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                    <span>Prioridade (0-9): <input type="number" id="in-prio" value="${prioAtual}" min="0" max="9" style="width: 45px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 4px;"></span>
+                    <span id="in-memo-vaga"></span>
+                </div>
                 <div style="font-size: 11px; margin-bottom: 8px; color: #888;">9 = padrão: vale a prioridade do grupo, se houver.</div>
                 ${htmlPaleta}
                 <div style="margin-top: 12px; display: flex; align-items: center; justify-content: space-between;">
@@ -693,7 +888,7 @@
             menu.style.left = Math.round(posX) + 'px';
             menu.style.top = Math.round(posY) + 'px';
 
-            let sBg = configs[nome]?.cor, sTx = configs[nome]?.tx;
+            let sBg = regraAtual.cor, sTx = regraAtual.tx;
 
             menu.querySelectorAll('.c-box').forEach(b => {
                 b.onclick = () => {
@@ -738,6 +933,31 @@
                 menu.querySelectorAll('.c-box').forEach(x => x.style.border = '1px solid #dee2e6');
             };
 
+            // Memo do localizador: o ícone que o eproc mostrava ao lado da pílula, agora aqui. Aciona o link original.
+            const memoEl = memoDoLocalizador(nome, alvoEl);
+            const vagaMemo = menu.querySelector('#in-memo-vaga');
+            if (memoEl && vagaMemo) {
+                const botaoMemo = document.createElement('button');
+                botaoMemo.type = 'button';
+                botaoMemo.id = 'in-memo';
+                // Só o ícone (como o eproc o mostrava ao lado da pílula); o texto vira dica e nome acessível.
+                botaoMemo.title = 'Abrir memo do localizador';
+                botaoMemo.setAttribute('aria-label', 'Abrir memo do localizador');
+                Object.assign(botaoMemo.style, { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', margin: '0', padding: '0', background: 'transparent', border: '1px solid transparent', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', color: '#333' });
+                botaoMemo.onmouseenter = () => { botaoMemo.style.background = '#f1f3f5'; };
+                botaoMemo.onmouseleave = () => { botaoMemo.style.background = 'transparent'; };
+                const iconeOriginal = memoEl.querySelector('img');
+                if (iconeOriginal && iconeOriginal.src) {
+                    const icone = document.createElement('img');
+                    icone.src = iconeOriginal.src;
+                    icone.alt = '';
+                    Object.assign(icone.style, { width: '24px', height: '24px', flex: '0 0 auto' });
+                    botaoMemo.append(icone);
+                } else botaoMemo.append('Memo'); // sem a imagem do eproc: texto curto no lugar
+                botaoMemo.onclick = () => { fecharMenu(); try { memoEl.click(); } catch (_) { /* link removido da página */ } };
+                vagaMemo.replaceWith(botaoMemo);
+            } else if (vagaMemo) vagaMemo.remove();
+
             document.getElementById('in-grupos').onclick = (ev) => {
                 ev.preventDefault();
                 // Cores dos grupos ficam no Organizador do navegador (edição de cada grupo).
@@ -748,9 +968,21 @@
             document.getElementById('in-save').onclick = () => {
                 const valPrio = parseInt(document.getElementById('in-prio').value);
                 const prioSalvar = isNaN(valPrio) ? 9 : Math.max(0, Math.min(9, valPrio));
-                configs[nome] = { prio: prioSalvar, cor: sBg, tx: sTx };
+                // Grava pelo ID (sobrevive à renomeação) e pelo nome (a extensão ainda lê por nome).
+                const regra = { prio: prioSalvar, cor: sBg, tx: sTx };
+                // Nome repetido entre localizadores: com o código em mãos (capa), grava só pelo código, para não pintar os homônimos.
+                const { id } = chavesDe(nome, alvoEl);
+                const pelaEtiqueta = !(id && indice.ambiguo(nome));
+                if (pelaEtiqueta) configs[nome] = regra;
+                if (id) configs[SPBase.chaveDoId(id)] = regra;
                 salvarConfiguracoes(configs);
-                try { SPBase.mudarPool(p => { const k = norm(nome); if (k !== '__proto__') p.proprias[k] = configs[nome]; }); }
+                try {
+                    SPBase.mudarPool(p => {
+                        const k = norm(nome);
+                        if (pelaEtiqueta && k !== '__proto__') p.proprias[k] = regra;
+                        if (id) p.proprias[SPBase.chaveDoId(id)] = regra;
+                    });
+                }
                 catch (erro) { console.warn('[SuperPROC] Não foi possível gravar a cor na base:', erro); }
                 fecharMenu();
                 processarTudo();

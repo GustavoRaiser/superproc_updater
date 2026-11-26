@@ -1,0 +1,113 @@
+/* Linha da capa (Lembretes | Minutas | Ações preferenciais): todo o CSS da linha e das colunas.
+   O preload de início de documento o injeta antes do primeiro elemento (eproc-recursos-cedo-preload.js): a linha e os blocos
+   nativos já nascem no estado final. Altura dos botões nativos do eproc (31px), colunas coladas; cantos retos, porque a capa do processo é toda reta. */
+
+/* Rede de segurança: cada bloco nativo só é escondido enquanto o script da sua coluna está vivo. O script marca o <html>
+   (sp-lc-tem-lembretes / -minutas / -acoes) assim que ele existe, antes de qualquer bloco chegar. Sem a marca (script não
+   carregado ou com erro), o bloco do eproc aparece no lugar dele, como se a linha não existisse. */
+
+/* ---- Linha (linha-capa.js) ---- */
+/* A capa é um <fieldset>, e todo fieldset tem 2px de margem lateral dada pelo navegador: a linha usa a mesma, para ficar
+   exatamente da largura da capa. */
+/* A linha encosta na capa: é continuação dela, sem vão. */
+#fldCapa { margin-bottom: 0 !important; }
+#sp-lc-linha { position: relative !important; display: flex !important; align-items: stretch !important; gap: 0 !important; width: auto !important; min-height: 31px !important; margin: 0 2px 8px 2px !important; padding: 0 !important; box-sizing: border-box !important; }
+/* Colunas coladas uma na outra: 25%, 25% e 50% exatos; a de minutas termina no meio da capa. */
+#sp-lc-lembretes, #sp-lc-minutas { flex: 0 0 25% !important; }
+#sp-lc-acoes { flex: 1 1 0 !important; }
+.sp-lc-coluna { position: relative !important; min-width: 0 !important; min-height: 31px !important; box-sizing: border-box !important; }
+
+/* ---- Caixa de coluna (comum a Lembretes e Minutas): .sp-lc-botao = caixa com o estado; dentro, .sp-lc-rotulo (texto
+   clicável) e, quando couber, .sp-lc-mais ("(+)") ---- */
+.sp-lc-botao { display: flex !important; align-items: center !important; justify-content: center !important; gap: 4px !important; width: 100% !important; height: 31px !important; margin: 0 !important; padding: 0 8px !important; box-sizing: border-box !important; border: 1px solid #dee2e6 !important; border-radius: 0 !important; box-shadow: none !important; font-size: 14px !important; font-weight: 500 !important; line-height: 1.5 !important; letter-spacing: 0.02em !important; white-space: nowrap !important; overflow: hidden !important; transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out !important; }
+.sp-lc-rotulo, .sp-lc-mais { -webkit-appearance: none !important; appearance: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; font: inherit !important; letter-spacing: inherit !important; color: inherit !important; line-height: 29px !important; height: 29px !important; }
+.sp-lc-rotulo { cursor: pointer !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+.sp-lc-rotulo:disabled { cursor: default !important; opacity: 1 !important; }
+.sp-lc-botao.sp-lc-sem { cursor: default !important; }
+/* O "(+)" é azul do eproc (#007ebd) sobre o cinza e branco sobre o verde (azul no verde não dá leitura; testado e descartado). */
+.sp-lc-mais { cursor: pointer !important; color: #007ebd !important; font-weight: 700 !important; padding: 0 2px !important; }
+/* Sem sublinhado no hover, nem no texto nem no "(+)" (pedido do usuário). */
+.sp-lc-rotulo, .sp-lc-rotulo:hover, .sp-lc-mais, .sp-lc-mais:hover { text-decoration: none !important; }
+.sp-lc-mais[hidden] { display: none !important; }
+.sp-lc-rotulo:focus-visible, .sp-lc-mais:focus-visible { outline: 2px solid #3ebfff !important; outline-offset: -2px !important; }
+/* Ainda sem saber se há conteúdo (o bloco do eproc não chegou): só a caixa, sem texto. */
+.sp-lc-botao.sp-lc-espera { background-color: #f8f9fa !important; color: transparent !important; }
+.sp-lc-botao.sp-lc-sem { background-color: #e9ecef !important; color: #6c757d !important; }
+.sp-lc-botao.sp-lc-com { background-color: #28a745 !important; border-color: #218838 !important; color: #ffffff !important; cursor: pointer !important; }
+.sp-lc-botao.sp-lc-com:hover { background-color: #218838 !important; }
+.sp-lc-botao.sp-lc-com .sp-lc-mais { color: #ffffff !important; }
+
+/* ---- Lembretes (linha-capa-lembretes.js) ---- */
+/* O bloco nativo fica oculto desde que nasce; só aparece como balão (.sp-lc-balao.sp-lc-aberto). Se a página não tiver capa
+   (linha não criada), o orquestrador põe .sp-lc-sem-linha no <html> e o bloco volta ao normal. */
+html.sp-lc-tem-lembretes:not(.sp-lc-sem-linha) #fldLembretes:not(.sp-lc-aberto) { display: none !important; }
+#fldLembretes.sp-lc-balao { position: absolute !important; top: calc(100% + 2px) !important; left: 0 !important; z-index: 9999 !important; width: max-content !important; min-width: 100% !important; max-width: calc(100vw - 40px) !important; max-height: 70vh !important; overflow-y: auto !important; margin: 0 !important; padding: 6px !important; box-sizing: border-box !important; background: #ffffff !important; border: 1px solid #ccc !important; border-radius: 2px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important; text-align: left !important; }
+#fldLembretes.sp-lc-balao.sp-lc-aberto { display: block !important; }
+/* Balão compacto: só os lembretes. O cabeçalho nativo (título, engrenagem, "Novo", carregando) não aparece; o "Novo" é o "(+)". */
+#fldLembretes.sp-lc-balao > legend, #fldLembretes.sp-lc-balao > legend a[href*="usuario_personalizacao_configuracao"] { display: none !important; }
+#fldLembretes.sp-lc-balao #divConteudoLembretes { display: flex !important; flex-wrap: wrap !important; align-items: flex-start !important; gap: 6px !important; margin: 0 !important; width: auto !important; }
+#fldLembretes.sp-lc-balao #divConteudoLembretes:empty { display: none !important; }
+#fldLembretes.sp-lc-balao .divLembrete { flex: 0 0 350px !important; width: 350px !important; max-width: calc(100vw - 80px) !important; height: auto !important; min-height: 0 !important; margin: 0 !important; box-sizing: border-box !important; }
+
+/* ---- Minutas (linha-capa-minutas.js) ---- */
+#sp-lc-minutas .sp-lc-botao.sp-lc-com { background-color: #007ebd !important; border-color: #006ba1 !important; }
+#sp-lc-minutas .sp-lc-botao.sp-lc-com:hover { background-color: #006ba1 !important; }
+/* Sem minuta ativa a caixa ainda é clicável: abre as opções de histórico. */
+#sp-lc-minutas .sp-lc-botao.sp-lc-sem, #sp-lc-minutas .sp-lc-botao.sp-lc-sem .sp-lc-rotulo { cursor: pointer !important; }
+/* O bloco nativo de fora fica oculto desde que nasce (o eproc repete o id #fldMinutas no bloco de dentro, por isso o seletor
+   pelo pai). Só aparece como balão. O balão se ancora na LINHA, não na coluna: a tabela é larga e pode usar a linha inteira. */
+html.sp-lc-tem-minutas:not(.sp-lc-sem-linha) #divInfraAreaProcesso > #fldMinutas, #fldMinutas.sp-lc-balao:not(.sp-lc-aberto) { display: none !important; }
+#sp-lc-minutas { position: static !important; }
+#fldMinutas.sp-lc-balao { position: absolute !important; top: calc(100% + 2px) !important; left: 0; z-index: 9999 !important; width: max-content !important; min-width: 25% !important; max-width: 100% !important; max-height: 70vh !important; overflow: auto !important; margin: 0 !important; padding: 6px !important; box-sizing: border-box !important; background: #ffffff !important; border: 1px solid #ccc !important; border-radius: 2px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important; text-align: left !important; }
+#fldMinutas.sp-lc-balao.sp-lc-aberto { display: block !important; }
+/* Compacto: sai o cabeçalho de fora (abre/fecha, atualizar), o "Manter Minutas Aberto" (mantido marcado pelo script), a
+   quebra de linha solta e, no bloco de dentro, o abre/fecha e a "Nova" (a nova é o "(+)"). */
+#fldMinutas.sp-lc-balao > legend, #fldMinutas.sp-lc-balao #chkMinutasAbertas, #fldMinutas.sp-lc-balao [for="chkMinutasAbertas"], #fldMinutas.sp-lc-balao #conteudoMinutas > br, #fldMinutas.sp-lc-balao #historico, #fldMinutas.sp-lc-balao fieldset #LegNovaMinuta { display: none !important; }
+#fldMinutas.sp-lc-balao #conteudoMinutas, #fldMinutas.sp-lc-balao div[id^="conteudoMinutas_"], #fldMinutas.sp-lc-balao div[id^="conteudoInternoMinutas"] { display: block !important; }
+#fldMinutas.sp-lc-balao fieldset { margin: 0 0 6px 0 !important; padding: 4px 6px 6px 6px !important; min-width: 0 !important; }
+#fldMinutas.sp-lc-balao fieldset > legend { float: none !important; width: auto !important; margin: 0 !important; padding: 0 4px !important; font-size: 14px !important; }
+#fldMinutas.sp-lc-balao table.infraTable { margin: 0 !important; }
+#fldMinutas.sp-lc-balao #chkExibirExcluidas, #fldMinutas.sp-lc-balao #chkExibirAnexadas { margin: 0 4px 0 0 !important; vertical-align: middle !important; }
+#fldMinutas.sp-lc-balao [for="chkExibirExcluidas"], #fldMinutas.sp-lc-balao [for="chkExibirAnexadas"] { margin-right: 12px !important; vertical-align: middle !important; white-space: nowrap !important; }
+/* Sem minuta ativa e sem histórico pedido: só as opções de histórico. */
+#fldMinutas.sp-lc-balao.sp-lc-so-opcoes div[id^="conteudoMinutas_"] { display: none !important; }
+
+/* ---- Ações preferenciais (linha-capa-acoes.js) ---- */
+/* O bloco nativo das preferências não aparece na página (modo único, o antigo "compacto"): oculto desde que nasce. */
+html.sp-lc-tem-acoes:not(.sp-lc-sem-linha) #div-acoes-preferenciais { display: none !important; }
+/* A coluna (metade direita da linha) divide-se por igual entre os botões das categorias ligadas: 1, 2, 3 ou 4. */
+#sp-lc-acoes { display: flex !important; align-items: stretch !important; }
+.sp-lc-celula { position: relative !important; flex: 1 1 0 !important; min-width: 0 !important; }
+.sp-lc-acao { -webkit-appearance: none !important; appearance: none !important; display: block !important; width: 100% !important; height: 31px !important; margin: 0 !important; padding: 0 8px !important; box-sizing: border-box !important; background-color: #f8f9fa !important; border: 1px solid #dee2e6 !important; border-radius: 0 !important; box-shadow: none !important; font-family: inherit !important; font-size: 14px !important; font-weight: 500 !important; line-height: 29px !important; letter-spacing: 0.02em !important; text-align: center !important; text-decoration: none !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; cursor: pointer !important; transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out !important; }
+.sp-lc-acao:focus-visible, .sp-lc-sub:focus-visible { outline: 2px solid #3ebfff !important; outline-offset: -2px !important; }
+/* Cores das categorias, as mesmas do eproc e do módulo da extensão. */
+.sp-lc-acao[data-cat="minuta"], .sp-lc-sub[data-cat="minuta"] { color: #007bff !important; }
+.sp-lc-acao[data-cat="movimentacao"], .sp-lc-sub[data-cat="movimentacao"] { color: #28a745 !important; }
+.sp-lc-acao[data-cat="intimacao"], .sp-lc-sub[data-cat="intimacao"] { color: #dc3545 !important; }
+.sp-lc-acao[data-cat="automatizacao"], .sp-lc-sub[data-cat="automatizacao"] { color: #673ab7 !important; }
+.sp-lc-acao[data-cat="minuta"]:hover, .sp-lc-celula.sp-lc-aberta .sp-lc-acao[data-cat="minuta"] { background-color: #e6f2ff !important; border-color: #99caff !important; }
+.sp-lc-acao[data-cat="movimentacao"]:hover, .sp-lc-celula.sp-lc-aberta .sp-lc-acao[data-cat="movimentacao"] { background-color: #d4edda !important; border-color: #a3d7b4 !important; }
+.sp-lc-acao[data-cat="intimacao"]:hover, .sp-lc-celula.sp-lc-aberta .sp-lc-acao[data-cat="intimacao"] { background-color: #f8d7da !important; border-color: #f1b0b7 !important; }
+.sp-lc-acao[data-cat="automatizacao"]:hover, .sp-lc-celula.sp-lc-aberta .sp-lc-acao[data-cat="automatizacao"] { background-color: #e2d9f3 !important; border-color: #cbbbed !important; }
+/* Seções da categoria aberta: uma fileira logo abaixo do botão, da largura dele. */
+.sp-lc-subs { display: none !important; position: absolute !important; top: 100% !important; left: 0 !important; right: 0 !important; z-index: 9999 !important; gap: 0 !important; margin: 0 !important; padding: 0 !important; background: #ffffff !important; box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important; }
+.sp-lc-celula.sp-lc-aberta .sp-lc-subs { display: flex !important; }
+.sp-lc-sub { -webkit-appearance: none !important; appearance: none !important; flex: 1 1 0 !important; min-width: 0 !important; height: 28px !important; margin: 0 !important; padding: 0 6px !important; box-sizing: border-box !important; background: #ffffff !important; border: 1px solid #dee2e6 !important; border-top: 0 !important; border-radius: 0 !important; font-family: inherit !important; font-size: 12px !important; font-weight: 700 !important; line-height: 26px !important; text-decoration: none !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; cursor: pointer !important; }
+.sp-lc-sub:hover { background: #f1f3f5 !important; }
+/* Painel das ações de uma seção: da largura da linha, logo abaixo dela, em colunas. */
+#sp-lc-painel { position: absolute !important; top: 100% !important; left: 0 !important; right: 0 !important; z-index: 9999 !important; max-height: 70vh !important; overflow-y: auto !important; margin: 0 !important; padding: 6px 28px 6px 8px !important; box-sizing: border-box !important; background: #ffffff !important; border: 1px solid #ccc !important; border-top-width: 2px !important; border-radius: 0 0 2px 2px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important; text-align: left !important; }
+#sp-lc-painel[data-cat="minuta"] { border-top-color: #007bff !important; }
+#sp-lc-painel[data-cat="movimentacao"] { border-top-color: #28a745 !important; }
+#sp-lc-painel[data-cat="intimacao"] { border-top-color: #dc3545 !important; }
+#sp-lc-painel[data-cat="automatizacao"] { border-top-color: #673ab7 !important; }
+#sp-lc-painel-fechar { -webkit-appearance: none !important; appearance: none !important; position: absolute !important; top: 2px !important; right: 4px !important; width: 20px !important; height: 20px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 2px !important; background: transparent !important; color: #6c757d !important; font-size: 18px !important; line-height: 18px !important; cursor: pointer !important; }
+#sp-lc-painel-fechar:hover { background: #e9ecef !important; color: #212529 !important; }
+.sp-lc-painel-conteudo { column-width: 240px !important; column-gap: 32px !important; }
+.sp-lc-painel-conteudo * { float: none !important; max-width: none !important; min-width: 0 !important; margin: 0 !important; padding-left: 0 !important; padding-right: 0 !important; flex: none !important; }
+.sp-lc-painel-conteudo div, .sp-lc-painel-conteudo ul, .sp-lc-painel-conteudo ol { display: block !important; width: auto !important; }
+.sp-lc-painel-conteudo li { display: block !important; list-style: none !important; padding: 1px 0 !important; font-size: 13px !important; line-height: 1.25 !important; break-inside: avoid !important; }
+.sp-lc-painel-conteudo a.content-link { display: block !important; padding: 0 !important; }
+.sp-lc-painel-conteudo hr, .sp-lc-painel-conteudo li:empty, .sp-lc-painel-conteudo div:empty { display: none !important; }
+/* "Sempre aberto ao iniciar", no menu de Preferências do eproc. */
+.sp-lc-sempre { display: flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; margin: 4px 0 0 0 !important; font-size: 11px !important; font-style: italic !important; font-weight: 400 !important; color: #6c757d !important; cursor: pointer !important; }
+.sp-lc-sempre input { margin: 0 !important; cursor: pointer !important; }

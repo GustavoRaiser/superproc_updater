@@ -311,6 +311,27 @@ const KEYS = {
     let listaDadosEventos = [];
     let draggedItemObj = null;
 
+    // --- IDENTIDADE DOS EVENTOS ---
+    // O que identifica o evento é o código do eproc (id em objAjaxAutoCompEvento.arrItens), usado para lançá-lo no
+    // servidor. O texto ("Descrição (código CNJ)") é só a etiqueta: pode mudar, e o código CNJ se repete entre eventos.
+    // Itens capturados sem arrItens guardaram o código CNJ como id; esse id não identifica nada e vale o texto.
+    function codigoCnj(texto) { const m = /\((\d+)\)\s*$/.exec(String(texto || '')); return m ? m[1] : null; }
+    function idDoEvento(item) {
+        const id = item && item.id !== undefined && item.id !== null ? String(item.id).trim() : '';
+        return id && id !== codigoCnj(item.text) ? id : null;
+    }
+    const chaveDoEvento = (item) => { const id = idDoEvento(item); return id ? 'id:' + id : 'tx:' + item.text; };
+    function mesmoEvento(a, b) {
+        const ia = idDoEvento(a), ib = idDoEvento(b);
+        return ia && ib ? ia === ib : a.text === b.text;
+    }
+    // Localiza, numa lista, o mesmo evento de outra: pelo código e, na falta dele, pelo texto.
+    function indiceEventos(lista) {
+        const porId = new Map(), porTexto = new Map();
+        for (const i of lista) { const id = idDoEvento(i); if (id && !porId.has(id)) porId.set(id, i); if (!porTexto.has(i.text)) porTexto.set(i.text, i); }
+        return (item) => { const id = idDoEvento(item); return (id && porId.get(id)) || porTexto.get(item.text) || null; };
+    }
+
     // --- FUNÇÕES DE DADOS ---
     function capturarEventosNativos() {
         // Coleta o que estiver na Base Automática salva ou tenta varrer a div se estiver aberta
@@ -381,7 +402,7 @@ const KEYS = {
         try { return localStorage.getItem(CHAVE_CHECAGEM) === hojeLocal(); } catch (_) { return true; /* sem storage: não insiste */ }
     }
 
-    function mostrarAvisoAtualizacao(novos, removidos) {
+    function mostrarAvisoAtualizacao(novos, removidos, renomeados = []) {
         const antigo = document.getElementById('smartevt-aviso');
         if (antigo) antigo.remove();
         if (!document.getElementById('smartevt-aviso-estilo')) {
@@ -404,12 +425,13 @@ const KEYS = {
             const h = document.createElement('h5');
             h.textContent = rotulo;
             const ul = document.createElement('ul');
-            itens.slice(0, LIMITE_LISTA_AVISO).forEach(i => { const li = document.createElement('li'); li.textContent = i.text; ul.appendChild(li); });
+            itens.slice(0, LIMITE_LISTA_AVISO).forEach(i => { const li = document.createElement('li'); li.textContent = i.antes ? i.antes.text + ' → ' + i.agora.text : i.text; ul.appendChild(li); });
             if (itens.length > LIMITE_LISTA_AVISO) { const li = document.createElement('li'); li.textContent = '... e mais ' + (itens.length - LIMITE_LISTA_AVISO); ul.appendChild(li); }
             caixa.append(h, ul);
         };
-        secao('Novos eventos disponíveis:', novos);
-        secao('Foram removidos eventos:', removidos);
+        secao('Eventos novos:', novos);
+        secao('Eventos renomeados no eproc (continuam nos seus grupos):', renomeados);
+        secao('Eventos removidos do eproc (saíram dos seus grupos):', removidos);
         const fechar = document.createElement('button');
         fechar.type = 'button';
         fechar.textContent = 'Fechar';
@@ -443,12 +465,16 @@ const KEYS = {
                     if (capturados.length > 0) {
                         const { grupos, estrutura } = getEstrutura();
                         const anterior = estrutura[GRUPO_SISTEMA] || [];
-                        const textosAntes = new Set(anterior.map(i => i.text));
-                        const textosAgora = new Set(capturados.map(i => i.text));
-                        const novos = capturados.filter(i => !textosAntes.has(i.text));
-                        const removidos = anterior.filter(i => !textosAgora.has(i.text));
+                        // Comparação pelo código do evento: renomear não é remover e criar.
+                        const noAnterior = indiceEventos(anterior), noAtual = indiceEventos(capturados);
+                        const novos = capturados.filter(i => !noAnterior(i));
+                        const removidos = anterior.filter(i => !noAtual(i));
+                        const renomeados = capturados
+                            .map(i => ({ antes: noAnterior(i), agora: i }))
+                            .filter(r => r.antes && r.antes.text !== r.agora.text);
+                        const idsMudaram = capturados.some(i => { const a = noAnterior(i); return a && idDoEvento(a) !== idDoEvento(i); });
 
-                        if (novos.length || removidos.length || !grupos.includes(GRUPO_SISTEMA)) {
+                        if (novos.length || removidos.length || renomeados.length || idsMudaram || !grupos.includes(GRUPO_SISTEMA)) {
                             if (!grupos.includes(GRUPO_SISTEMA)) grupos.push(GRUPO_SISTEMA);
                             estrutura[GRUPO_SISTEMA] = capturados;
                             salvarEstrutura(grupos, estrutura);
@@ -456,7 +482,7 @@ const KEYS = {
                             const dd = document.getElementById('smartevt-dropdown');
                             if (dd && dd.style.display === 'flex') renderizarLista();
                             // Base vazia = primeira carga: não há o que comparar, então não avisa.
-                            if (anterior.length > 0) mostrarAvisoAtualizacao(novos, removidos);
+                            if (anterior.length > 0 && (novos.length || removidos.length || renomeados.length)) mostrarAvisoAtualizacao(novos, removidos, renomeados);
                         }
                         try { localStorage.setItem(CHAVE_BASE_EM, hojeLocal()); localStorage.setItem(CHAVE_CHECAGEM, hojeLocal()); } catch (_) {}
                     }
@@ -544,24 +570,27 @@ const KEYS = {
 
     function sincronizarEstruturaGeral() {
         let { grupos, estrutura } = getEstrutura();
-        let baseSistemaTextos = (estrutura[GRUPO_SISTEMA] || []).map(i => i.text);
+        const base = estrutura[GRUPO_SISTEMA] || [];
+        const naBase = indiceEventos(base);
 
+        // Mantém nos grupos só o que existe na base, achado pelo código: um evento renomeado no eproc continua no grupo e
+        // passa a mostrar o texto novo. Sai o evento que sumiu da base. O mesmo evento repetido fica só na primeira posição.
+        const vistos = new Set();
         Object.keys(estrutura).forEach(grp => {
-            if (grp !== GRUPO_SISTEMA) {
-                // Mantém apenas os itens que existem na base do sistema ou em grupos customizados
-                estrutura[grp] = estrutura[grp].filter(item => {
-                    return baseSistemaTextos.length === 0 || baseSistemaTextos.includes(item.text);
+            if (grp === GRUPO_SISTEMA || !Array.isArray(estrutura[grp])) return;
+            estrutura[grp] = estrutura[grp]
+                .map(item => (base.length ? naBase(item) : item))
+                .filter(item => {
+                    if (!item) return false;
+                    const k = chaveDoEvento(item);
+                    if (vistos.has(k)) return false;
+                    vistos.add(k);
+                    return true;
                 });
-            }
         });
 
         // Classifica somente os itens ainda não organizados.
-        const todosAlocados = new Set();
-        Object.keys(estrutura).forEach(grp => {
-            if (grp !== GRUPO_SISTEMA) {
-                for (const item of estrutura[grp]) todosAlocados.add(item.text);
-            }
-        });
+        const todosAlocados = vistos;
 
         if (estrutura[GRUPO_SISTEMA]) {
             const padroes = ['Despachos/Decisões', 'Sentenças', 'Atos'];
@@ -573,12 +602,12 @@ const KEYS = {
                 }
             }
             for (const item of estrutura[GRUPO_SISTEMA]) {
-                if (todosAlocados.has(item.text)) continue;
+                if (todosAlocados.has(chaveDoEvento(item))) continue;
                 const texto = item.text.normalize('NFC').trim();
                 const grupo = /^(?:despacho\s*\/\s*decisão|decisão\s*\/\s*despacho)\s*[-–—]/iu.test(texto) ? padroes[0]
                     : /^sentença\s*[-–—]/iu.test(texto) ? padroes[1] : padroes[2];
                 (grupos.includes(grupo) ? estrutura[grupo] : estrutura['Sem Grupo']).push(item);
-                todosAlocados.add(item.text);
+                todosAlocados.add(chaveDoEvento(item));
             }
         }
 
@@ -1013,7 +1042,7 @@ const KEYS = {
                         e.stopPropagation();
                         if(confirm("Remover este evento do grupo?")) {
                             let { grupos, estrutura } = getEstrutura();
-                            estrutura[nome] = estrutura[nome].filter(i => i.text !== obj.text);
+                            estrutura[nome] = estrutura[nome].filter(i => !mesmoEvento(i, obj));
                             salvarEstrutura(grupos, estrutura);
                             renderizarLista();
                         }
@@ -1061,13 +1090,13 @@ const KEYS = {
         // Remove de grupos customizados (Se vier da base do sistema, apenas copia)
         Object.keys(estrutura).forEach(grp => {
             if (grp !== GRUPO_SISTEMA) {
-                estrutura[grp] = estrutura[grp].filter(v => v.text !== obj.text);
+                estrutura[grp] = estrutura[grp].filter(v => !mesmoEvento(v, obj));
             }
         });
 
         if (!estrutura[grupoDestino]) estrutura[grupoDestino] = [];
-        
-        const jaExiste = estrutura[grupoDestino].find(v => v.text === obj.text);
+
+        const jaExiste = estrutura[grupoDestino].find(v => mesmoEvento(v, obj));
         if (!jaExiste) {
             estrutura[grupoDestino].push(obj);
         }
@@ -1397,7 +1426,7 @@ const KEYS = {
                     if (item.text.toLowerCase().includes(termo)) {
                         if (!estrutura[alvo]) estrutura[alvo] = [];
 
-                        const jaExiste = estrutura[alvo].find(v => v.text === item.text);
+                        const jaExiste = estrutura[alvo].find(v => mesmoEvento(v, item));
                         if (!jaExiste) {
                             estrutura[alvo].push(item);
                             contagemMoved++;

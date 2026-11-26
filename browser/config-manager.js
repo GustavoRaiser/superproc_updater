@@ -46,6 +46,21 @@ const DEFAULT_CONFIG = {
   // Recursos do eproc portados da extensão (eproc-recursos.js). Ligados por padrão.
   smartLocsEventos: true,
   localizadoresColoridos: true,
+  // "Barra de Botões da capa" (eproc-recursos/barra-botoes-capa.js): Assuntos, Informações, Ações e Preferências em balões. Ligado por padrão.
+  barraBotoesCapa: true,
+  // "Linha de Lembretes e Minutas da capa" (eproc-recursos/linha-capa.js): linha de três colunas logo abaixo da capa. Ligado por padrão.
+  linhaCapa: true,
+  // "Navegação pela lista" (eproc-recursos/navegacao-lista.js): ◀ LISTA (n/N) ▶ na capa, vinda da lista de processos. Ligado por padrão.
+  navegacaoLista: true,
+  // "Árvore - AutoMarca" (eproc-recursos/arvore-automarca.js): botões ☑ e ⌕ que marcam os documentos-chave na árvore. Ligado por padrão.
+  arvoreAutomarca: true,
+  // Demais recursos da árvore e do editor portados da extensão (eproc-recursos/arvore-*.js e menu-eventos-rapido*.js). Ligados por padrão.
+  arvoreColorida: true,
+  arvoreEventoCor: true,
+  arvoreCompacta: true,
+  menuEventosRapido: true,
+  // Atalho do Menu Rápido de Eventos ({ code, ctrl, alt, shift, meta }); null = ainda não escolhido (o menu não abre).
+  menuEventosAtalho: null,
   modoAbertura: 'integrada',
   colunaCopilot: false,
   // Chave "Copilot nos textos": ícone do Copilot ao lado do cursor nos campos de texto das abas (redator-linha.js). Ligado por
@@ -156,6 +171,15 @@ function loadConfig(forceReload = false) {
       conf.botoesEprocNaBarra = conf.botoesEprocNaBarra !== false;
       conf.smartLocsEventos = conf.smartLocsEventos !== false;
       conf.localizadoresColoridos = conf.localizadoresColoridos !== false;
+      conf.barraBotoesCapa = conf.barraBotoesCapa !== false;
+      conf.linhaCapa = conf.linhaCapa !== false;
+      conf.navegacaoLista = conf.navegacaoLista !== false;
+      conf.arvoreAutomarca = conf.arvoreAutomarca !== false;
+      conf.arvoreColorida = conf.arvoreColorida !== false;
+      conf.arvoreEventoCor = conf.arvoreEventoCor !== false;
+      conf.arvoreCompacta = conf.arvoreCompacta !== false;
+      conf.menuEventosRapido = conf.menuEventosRapido !== false;
+      conf.menuEventosAtalho = require('./quick-shortcut-core').normalizarSalvo(conf.menuEventosAtalho);
       // Migração: o antigo modo 'integradaCopilot' virou Integrada + toggle "Coluna Copilot" ligado
       if (typeof parsed.colunaCopilot !== 'boolean') conf.colunaCopilot = colunaDoModoLegado(parsed.modoAbertura);
       conf.modoAbertura = normalizarModo(conf.modoAbertura);

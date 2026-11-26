@@ -197,7 +197,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Recursos do eproc portados da extensão (eproc-recursos.js no host).
     for (const [id, chave, salvar, rotulo] of [
       ['chk-settings-smart', 'smartLocsEventos', api.setSmartLocsEventos, 'Smart Localizadores & Eventos'],
-      ['chk-settings-coloridos', 'localizadoresColoridos', api.setLocalizadoresColoridos, 'Localizadores Coloridos']
+      ['chk-settings-coloridos', 'localizadoresColoridos', api.setLocalizadoresColoridos, 'Localizadores Coloridos'],
+      ['chk-settings-barra-capa', 'barraBotoesCapa', api.setBarraBotoesCapa, 'Barra de Botões da capa'],
+      ['chk-settings-linha-capa', 'linhaCapa', api.setLinhaCapa, 'Linha de Lembretes e Minutas da capa'],
+      ['chk-settings-navegacao-lista', 'navegacaoLista', api.setNavegacaoLista, 'Navegação pela lista de processos'],
+      ['chk-settings-arvore-automarca', 'arvoreAutomarca', api.setArvoreAutomarca, 'Árvore - AutoMarca'],
+      ['chk-settings-arvore-colorida', 'arvoreColorida', api.setArvoreColorida, 'Árvore - Colorida Dinâmica'],
+      ['chk-settings-arvore-evento-cor', 'arvoreEventoCor', api.setArvoreEventoCor, 'Árvore - Cores no Evento Raiz'],
+      ['chk-settings-arvore-compacta', 'arvoreCompacta', api.setArvoreCompacta, 'Árvore - Botões Compactos'],
+      ['chk-settings-menu-eventos', 'menuEventosRapido', api.setMenuEventosRapido, 'Editor - Menu Rápido de Eventos']
     ]) {
       const chk = document.getElementById(id);
       chk.checked = settingsCfg[chave] !== false;
@@ -205,6 +213,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { await salvar(chk.checked); }
         catch { chk.checked = !chk.checked; cacheStatus.textContent = 'Não foi possível salvar ' + rotulo + '.'; }
       });
+    }
+
+    // Atalho do Menu Rápido de Eventos: clicar em Definir e apertar a combinação (Esc cancela; Backspace/Delete ou ✕ remove).
+    {
+      const btn = document.getElementById('btn-menu-eventos-atalho');
+      const limpar = document.getElementById('btn-menu-eventos-atalho-clear');
+      let atual = settingsCfg.menuEventosAtalho || null;
+      let capturandoMenu = false;
+      const pintar = (aviso) => {
+        btn.classList.toggle('definido', !!atual);
+        btn.classList.toggle('capturando', capturandoMenu);
+        btn.textContent = capturandoMenu ? 'Pressione…' : (atual ? AtalhoAcesso.descrever(atual) : 'Definir…');
+        limpar.hidden = !atual;
+        if (aviso) cacheStatus.textContent = aviso;
+      };
+      const gravar = async (novo) => {
+        try { atual = await api.setMenuEventosAtalho(novo); pintar(novo ? 'Atalho do Menu Rápido de Eventos definido.' : 'Atalho do Menu Rápido de Eventos removido.'); }
+        catch { pintar('Não foi possível salvar o atalho do Menu Rápido de Eventos.'); }
+      };
+      btn.addEventListener('click', () => { capturandoMenu = true; pintar(); });
+      limpar.addEventListener('click', () => gravar(null));
+      window.addEventListener('keydown', (e) => {
+        if (!capturandoMenu) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (e.key === 'Escape') { capturandoMenu = false; pintar(); return; }
+        if ((e.key === 'Backspace' || e.key === 'Delete') && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) { capturandoMenu = false; gravar(null); return; }
+        const r = AtalhoAcesso.avaliarTecla(e);
+        if (r.estado === 'aguardar') return;
+        if (r.estado === 'recusado') { cacheStatus.textContent = r.motivo; return; }
+        capturandoMenu = false;
+        gravar(r.atalho);
+      }, true);
+      document.addEventListener('mousedown', (e) => { if (capturandoMenu && !e.target.closest('#btn-menu-eventos-atalho')) { capturandoMenu = false; pintar(); } }, true);
+      pintar();
     }
 
     // Consentimento da ponte do Copilot: ligado só quando a pessoa já permitiu (estado 1).

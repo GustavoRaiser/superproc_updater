@@ -93,6 +93,51 @@ const SPBase = (() => {
     return novo;
   }
 
+  // ---- Identidade dos localizadores: o ID do eproc (value do <option>, selLocalizador). O nome é só a etiqueta. ----
+  // Entradas da pool por ID usam a chave "id:<ID>" no mesmo mapa (proprias): a extensão preserva qualquer chave do mapa.
+  const PREFIXO_ID = 'id:';
+  const chaveDoId = (id) => PREFIXO_ID + String(id);
+  const normNome = (s) => String(s).normalize('NFC').replace(/️/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  // O texto do catálogo é "Nome - Descrição". Quando as duas metades são iguais, o nome é exato; senão, cada prefixo
+  // antes de " - " é candidato (o próprio nome pode conter " - ").
+  function nomesDoTexto(texto) {
+    const partes = String(texto).split(' - ');
+    if (partes.length % 2 === 0) {
+      const meio = partes.length / 2, a = partes.slice(0, meio).join(' - ');
+      if (normNome(a) === normNome(partes.slice(meio).join(' - '))) return { exato: a, candidatos: [] };
+    }
+    if (partes.length === 2) return { exato: partes[0], candidatos: [] }; // um só " - ": o nome é a primeira parte
+    const candidatos = [];
+    for (let k = 1; k < partes.length; k++) candidatos.push(partes.slice(0, k).join(' - '));
+    return { exato: null, candidatos };
+  }
+  // Índice do catálogo. Nome que aponta para mais de um ID (ex.: dois "TJSC-TRÂNSITO") fica ambíguo e não resolve.
+  function indiceLocalizadores(catalogo = lerPool().catalogoLoc) {
+    const porTexto = new Map(), exatos = new Map(), candidatos = new Map(), nomePorId = new Map();
+    const marcar = (mapa, chave, id) => { mapa.set(chave, mapa.has(chave) && mapa.get(chave) !== id ? null : id); };
+    for (const { value: id, text } of catalogo) {
+      marcar(porTexto, normNome(text), id);
+      const { exato, candidatos: cands } = nomesDoTexto(text);
+      if (exato) { marcar(exatos, normNome(exato), id); nomePorId.set(id, exato); }
+      else { cands.forEach(c => marcar(candidatos, normNome(c), id)); nomePorId.set(id, cands[0] || text); }
+    }
+    return {
+      nomePorId,
+      // Nome curto (pílula) ou texto completo ("Nome - Descrição") -> ID, ou null se ausente ou ambíguo.
+      idDe(nome) {
+        const k = normNome(nome);
+        if (porTexto.has(k)) return porTexto.get(k);
+        if (exatos.has(k)) return exatos.get(k);
+        return candidatos.get(k) || null;
+      },
+      // Nome que corresponde a mais de um localizador no catálogo (só o código distingue).
+      ambiguo(nome) {
+        const k = normNome(nome);
+        return [porTexto, exatos, candidatos].some(m => m.has(k) && m.get(k) === null) && !this.idDe(nome);
+      }
+    };
+  }
+
   function garantirPool() { if (localStorage.getItem(CHAVE_POOL_CORES) === null) mudarPool(() => {}); }
 
   // Mudanças da base vindas de fora deste documento: outra aba (evento storage) ou o host (organizador do navegador).
@@ -135,6 +180,7 @@ const SPBase = (() => {
 
   return {
     SEM_GRUPO, GRUPO_OCULTOS, GRUPO_BASE_EVENTOS, LOCAL_KEYS, CHAVE_POOL_CORES, EVENTO_BASE_MUDOU, PALETA_LOCALIZADORES,
-    lerLocal, gravarLocal, lerPool, mudarPool, garantirPool, aoMudarBase, abrirOrganizador, normCor, domWork
+    lerLocal, gravarLocal, lerPool, mudarPool, garantirPool, aoMudarBase, abrirOrganizador, normCor, domWork,
+    PREFIXO_ID, chaveDoId, normNome, nomesDoTexto, indiceLocalizadores
   };
 })();
